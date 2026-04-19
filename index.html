@@ -4488,9 +4488,9 @@ function dupProd(id){
 }
 
 // Cargar config de regalo al iniciar
-const _origInitApp4 = initApp;
+const _origInitApp_gift = initApp;
 initApp = function(){
-  _origInitApp4();
+  _origInitApp_gift();
   loadGiftCfgUI();
   loadSBCfgUI();
 };
