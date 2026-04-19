@@ -951,6 +951,26 @@ setTimeout(function(){
     <div style="font-size:11px;color:var(--text-light);margin-top:3px">📷 escanea el barcode del empaque · ⚡ genera un código nuevo si no tiene</div>
   </div>
   <div class="fg"><label>Nombre / Descripción</label><input id="p-nombre" type="text" placeholder="Brazalete cubano flor 14K"></div>
+  <div class="fr2">
+    <div class="fg">
+      <label>Tipo de joya</label>
+      <select id="p-tipo">
+        <option value="">— Sin especificar —</option>
+        <option value="Pulsera">Pulsera</option>
+        <option value="Arete">Arete</option>
+        <option value="Set">Set (collar + arete)</option>
+        <option value="Tobillera">Tobillera</option>
+        <option value="Collar">Collar</option>
+        <option value="Anillo">Anillo</option>
+        <option value="Dije">Dije / Charm</option>
+        <option value="Cadena">Cadena</option>
+        <option value="Prendedor">Prendedor / Broche</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div class="fg"><label>Material</label><input id="p-material" type="text" placeholder="Latón / Brass · Gold plated 14K"></div>
+  </div>
+  <div class="fg"><label>Descripción adicional <span style="font-weight:400;color:var(--text-light)">(opcional — aparece en factura)</span></label><input id="p-desc" type="text" placeholder="Ej: con piedras, antialérgico, incluye caja..."></div>
   <div class="fg">
     <label>Foto del producto</label>
     <input type="hidden" id="p-foto">
@@ -1474,17 +1494,28 @@ function autoSKU(){
   const rnd=Math.random().toString(36).substring(2,5).toUpperCase();
   document.getElementById('p-sku').value='BWC'+ts+rnd;
 }
+// ---- Metadata de producto (tipo, material, desc) — localStorage ----
+function getProdMeta(id){
+  try{return JSON.parse(localStorage.getItem('bwc_pm_'+id)||'{}');}catch(e){return {};}
+}
+function setProdMeta(id,data){
+  const prev=getProdMeta(id);
+  localStorage.setItem('bwc_pm_'+id,JSON.stringify({...prev,...data}));
+}
+
 function resetProdForm(){
-  ['p-id','p-sku','p-nombre','p-costo','p-precio'].forEach(i=>document.getElementById(i).value='');
+  ['p-id','p-sku','p-nombre','p-costo','p-precio','p-material','p-desc'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
   document.getElementById('p-stock').value=6;
   document.getElementById('p-prov').value='Xuping';
   document.getElementById('p-cat').value='B';
+  const tp=document.getElementById('p-tipo');if(tp)tp.value='';
   document.getElementById('pc-costo').textContent='—';
   document.getElementById('pc-venta').textContent='—';
   document.getElementById('pc-ganancia').textContent='—';
 }
 function editProd(id){
   const p=db.prods.find(x=>x.id===id);
+  const meta=getProdMeta(id);
   document.getElementById('p-id').value=p.id;
   document.getElementById('p-sku').value=p.sku||'';
   document.getElementById('p-nombre').value=p.nombre;
@@ -1493,6 +1524,9 @@ function editProd(id){
   document.getElementById('p-prov').value=p.proveedor||'Xuping';
   document.getElementById('p-costo').value=p.costo;
   document.getElementById('p-precio').value=p.precio;
+  const tp=document.getElementById('p-tipo');if(tp)tp.value=meta.tipo||'';
+  const mt=document.getElementById('p-material');if(mt)mt.value=meta.material||'';
+  const dc=document.getElementById('p-desc');if(dc)dc.value=meta.desc||'';
   calcPrecio();
   openModal('modal-prod');
 }
@@ -1501,6 +1535,10 @@ function saveProd(){
   let sku=document.getElementById('p-sku').value.trim().toUpperCase();
   if(!sku){const ts=Date.now().toString(36).toUpperCase();const rnd=Math.random().toString(36).substring(2,5).toUpperCase();sku='BWC'+ts+rnd;}
   const p={id:id||Date.now()+'',sku,nombre:document.getElementById('p-nombre').value.trim()||sku,categoria:document.getElementById('p-cat').value,stock:+document.getElementById('p-stock').value||0,proveedor:document.getElementById('p-prov').value,costo:+document.getElementById('p-costo').value||0,precio:+document.getElementById('p-precio').value||0};
+  const tipo=(document.getElementById('p-tipo')?.value||'').trim();
+  const material=(document.getElementById('p-material')?.value||'').trim();
+  const desc=(document.getElementById('p-desc')?.value||'').trim();
+  setProdMeta(p.id,{tipo,material,desc});
   if(id)db.prods[db.prods.findIndex(x=>x.id===id)]=p;else db.prods.push(p);
   sbSaveProd(p);closeModal('modal-prod');renderInv();updateInvStats();
   if(!id&&sku.startsWith('BWC'))setTimeout(()=>showBC(p.id),300);
@@ -2109,6 +2147,7 @@ function shareWA(){
 // ============================================================
 function genCMInvoice(saleId){
   const v=db.sales.find(x=>x.id===saleId);if(!v)return;
+  const shipping=parseFloat(prompt('Costo de envío (dejar en 0 si no aplica):', '0')||'0');
   const cfg=JSON.parse(localStorage.getItem('bwc_cfg')||'{}');
   const storeName=cfg.nombre||'BlissWave Collection';
   const storeSlogan=cfg.slogan||'Joyería fina';
@@ -2117,159 +2156,150 @@ function genCMInvoice(saleId){
   const storeSocial=cfg.social||'';
   const logoSrc=localStorage.getItem('pwa_icon_192')||'';
   const num='BWC-'+saleId.slice(-6).toUpperCase();
-  const fecha=new Date(v.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
-  const fechaVence=new Date(new Date(v.fecha).getTime()+30*86400000).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
-  const items=v.items||[];
-  const isPaid=v.payStatus==='Pagado';
+  const fechaObj=new Date(v.fecha);
+  const fecha=fechaObj.toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const items=(v.items||[]).filter(i=>!i.isGift);
+  const totalQty=items.reduce((s,i)=>s+(i.qty||1),0);
 
-  const rows=items.filter(i=>!i.isGift).map((item,i)=>`
-    <tr>
-      <td style="text-align:center;color:#666">${i+1}</td>
-      <td style="font-family:monospace;font-size:11px;color:#555">${item.sku||'—'}</td>
-      <td>${item.name||item.nombre||''}</td>
-      <td style="text-align:center">${item.qty||1}</td>
-      <td style="text-align:right">$${parseFloat(item.price||0).toFixed(2)}</td>
-      <td style="text-align:right;font-weight:600">$${parseFloat(item.sub||0).toFixed(2)}</td>
-    </tr>`).join('');
+  const rows=items.map((item,i)=>{
+    const prod=db.prods.find(p=>p.id===item.prodId)||{};
+    const meta=getProdMeta(item.prodId||'');
+    const tipo=meta.tipo||item.cat||'';
+    const material=meta.material||'Latón / Brass';
+    const descExtra=meta.desc||'';
+    const foto=prod.foto||item.foto||'';
+    const descLines=[
+      tipo?`1. Tipo: ${tipo}`:'1. Tipo: Joyería',
+      `2. Material: ${material}`,
+      '3. Tecnología: Gold plating',
+      '4. Color metal: 14K',
+      descExtra?`5. ${descExtra}`:''
+    ].filter(Boolean).join('<br>');
+    const bg=i%2===1?'background:#e8f5e1':'background:#fff';
+    return `<tr style="${bg}">
+      <td style="text-align:center;border:1px solid #ccc;padding:8px;font-size:12px">${i+1}</td>
+      <td style="border:1px solid #ccc;padding:8px;font-family:monospace;font-size:11px;text-align:center">${item.sku||prod.sku||'—'}</td>
+      <td style="border:1px solid #ccc;padding:4px;text-align:center;width:90px">${foto?`<img src="${foto}" style="width:80px;height:80px;object-fit:cover;border-radius:4px">`:'<div style="width:80px;height:80px;background:#f5f5f5;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:24px">🌸</div>'}</td>
+      <td style="border:1px solid #ccc;padding:8px;font-size:11px;line-height:1.9;color:#333">${descLines}</td>
+      <td style="border:1px solid #ccc;padding:8px;text-align:center;font-size:12px">${item.qty||1}</td>
+      <td style="border:1px solid #ccc;padding:8px;text-align:center;font-size:12px">$${parseFloat(item.price||0).toFixed(2)}</td>
+      <td style="border:1px solid #ccc;padding:8px;text-align:center;font-weight:700;font-size:12px;color:#1a6b2e">$${parseFloat(item.sub||0).toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  const grandTotal=v.total+(shipping||0);
 
   const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Factura ${num}</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<title>Factura ${num} — ${storeName}</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Inter',sans-serif;background:#f0f0f0;color:#222;font-size:13px;}
-.page{max-width:760px;margin:20px auto;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.12);}
+body{font-family:'Arial',sans-serif;background:#fff;color:#222;font-size:13px;}
+.page{max-width:900px;margin:0 auto;padding:20px;}
 /* Header */
-.hdr{background:#1a1a2e;color:#fff;padding:28px 36px;display:flex;justify-content:space-between;align-items:flex-start;}
-.hdr-logo{display:flex;align-items:center;gap:14px;}
-.hdr-logo img{width:56px;height:56px;border-radius:8px;object-fit:cover;border:1.5px solid rgba(255,255,255,.2);}
-.hdr-logo .logo-ph{width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:26px;}
-.store-name{font-size:20px;font-weight:700;letter-spacing:.3px;}
-.store-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;letter-spacing:.5px;}
-.store-contact{font-size:11px;color:rgba(255,255,255,.55);margin-top:6px;line-height:1.7;}
-.hdr-right{text-align:right;}
-.inv-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:4px;}
-.inv-num{font-size:26px;font-weight:700;letter-spacing:1px;color:#e8b4ae;}
-/* Meta strip */
-.meta-strip{background:#f8f8f8;border-bottom:1px solid #e8e8e8;padding:14px 36px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
-.meta-cell .mc-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:3px;}
-.meta-cell .mc-val{font-size:13px;font-weight:600;color:#222;}
-/* Status badge */
-.badge-paid{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block;}
-.badge-pend{background:#fff8e1;color:#f57f17;border:1px solid #ffe082;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block;}
-/* Body */
-.body{padding:28px 36px;}
-/* Bill To */
-.section-title{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#999;margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid #1a1a2e;}
-.bill-box{background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;padding:14px 16px;margin-bottom:24px;}
-.bill-name{font-size:15px;font-weight:700;margin-bottom:4px;}
-.bill-detail{font-size:12px;color:#666;line-height:1.8;}
+.hdr-box{border:2px solid #333;margin-bottom:0;}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #ccc;}
+.hdr-logo-wrap{display:flex;align-items:center;gap:12px;}
+.hdr-logo-wrap img{width:60px;height:60px;border-radius:6px;object-fit:cover;}
+.hdr-logo-ph{width:60px;height:60px;border-radius:6px;background:#f0e8f0;display:flex;align-items:center;justify-content:center;font-size:28px;}
+.store-name{font-size:18px;font-weight:900;letter-spacing:.5px;color:#111;}
+.store-sub{font-size:11px;color:#666;margin-top:2px;}
+.inv-title{font-size:22px;font-weight:900;letter-spacing:1px;text-align:right;color:#111;}
+.hdr-contact{padding:8px 20px;font-size:11px;color:#444;line-height:1.9;border-bottom:1px solid #ccc;background:#fafafa;}
+/* Buyer row */
+.buyer-row{display:grid;grid-template-columns:1fr 1fr 1fr;border-bottom:1px solid #ccc;}
+.buyer-cell{padding:8px 14px;font-size:12px;}
+.buyer-cell strong{font-size:11px;text-transform:uppercase;color:#888;display:block;margin-bottom:2px;}
 /* Table */
-.itbl{width:100%;border-collapse:collapse;margin-bottom:20px;}
-.itbl thead tr{background:#1a1a2e;color:#fff;}
-.itbl thead th{padding:10px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.8px;font-weight:600;text-align:left;}
-.itbl thead th:last-child,.itbl thead th:nth-child(4),.itbl thead th:nth-child(5){text-align:right;}
-.itbl thead th:nth-child(1){text-align:center;width:36px;}
-.itbl tbody tr{border-bottom:1px solid #f0f0f0;}
-.itbl tbody tr:last-child{border-bottom:none;}
-.itbl tbody td{padding:10px 12px;vertical-align:top;}
-.itbl tbody tr:nth-child(even){background:#fafafa;}
-/* Totals */
-.totals-wrap{display:flex;justify-content:flex-end;margin-bottom:24px;}
-.totals{width:260px;}
-.tot-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#555;border-bottom:1px solid #f0f0f0;}
-.tot-row:last-child{border-bottom:none;margin-top:6px;padding-top:10px;font-size:16px;font-weight:700;color:#1a1a2e;}
-.tot-row:last-child span:last-child{color:#c4607e;}
-/* Notes */
-.notes{background:#fffbf0;border-left:3px solid #e8b4ae;padding:12px 16px;border-radius:0 6px 6px 0;margin-bottom:24px;font-size:12px;color:#555;line-height:1.7;}
-/* Footer */
-.footer{background:#1a1a2e;padding:16px 36px;display:flex;justify-content:space-between;align-items:center;}
-.footer-left{font-size:11px;color:rgba(255,255,255,.4);line-height:1.8;}
-.footer-right{font-size:11px;color:rgba(255,255,255,.4);text-align:right;line-height:1.8;}
+.itbl{width:100%;border-collapse:collapse;}
+.itbl th{background:#333;color:#fff;padding:9px 8px;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border:1px solid #333;text-align:center;}
+.itbl td{border:1px solid #ccc;vertical-align:middle;}
+/* Footer totals */
+.foot-tbl{width:100%;border-collapse:collapse;margin-top:0;}
+.foot-tbl td{border:1px solid #ccc;padding:7px 12px;font-size:12px;}
+.foot-tbl .lbl{color:#555;}
+.foot-tbl .val{text-align:right;font-weight:600;}
+.foot-tbl .grand td{background:#333;color:#fff;font-weight:900;font-size:14px;}
+/* Sign & note */
+.bottom{display:flex;justify-content:space-between;margin-top:18px;font-size:11px;color:#555;}
+.sign-box{border-top:1px solid #aaa;width:200px;padding-top:5px;text-align:center;margin-top:30px;}
 /* Actions */
-.action-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e0e0e0;padding:12px 20px 18px;display:flex;gap:8px;justify-content:center;}
-.action-bar button{padding:11px 24px;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;cursor:pointer;}
-.btn-print{background:#1a1a2e;color:#fff;}
+.action-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #e0e0e0;padding:10px 20px 16px;display:flex;gap:8px;justify-content:center;z-index:999;}
+.action-bar button{padding:10px 22px;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;}
+.btn-print{background:#333;color:#fff;}
 .btn-pdf{background:#c4607e;color:#fff;}
 .btn-wa{background:#25D366;color:#fff;}
-@media print{.action-bar{display:none;}body{background:#fff;}.page{box-shadow:none;margin:0;max-width:100%;}}
+@media print{.action-bar{display:none;}body{padding:0;}.page{padding:10px;max-width:100%;}}
 </style></head><body>
 <div class="page">
 
-<div class="hdr">
-  <div class="hdr-logo">
-    ${logoSrc?`<img src="data:image/png;base64,${logoSrc}" alt="logo">`:`<div class="logo-ph">🌸</div>`}
-    <div>
-      <div class="store-name">${storeName}</div>
-      <div class="store-sub">${storeSlogan}</div>
-      <div class="store-contact">
-        ${storeAddr?`📍 ${storeAddr}<br>`:''}
-        ${storeWa?`📱 ${storeWa}<br>`:''}
-        ${storeSocial?`✦ ${storeSocial}`:''}
+<div class="hdr-box">
+  <div class="hdr-top">
+    <div class="hdr-logo-wrap">
+      ${logoSrc?`<img src="data:image/png;base64,${logoSrc}" alt="logo">`:`<div class="hdr-logo-ph">🌸</div>`}
+      <div>
+        <div class="store-name">${storeName}</div>
+        <div class="store-sub">${storeSlogan}</div>
       </div>
     </div>
+    <div class="inv-title">Proforma Invoice</div>
   </div>
-  <div class="hdr-right">
-    <div class="inv-label">Factura</div>
-    <div class="inv-num">${num}</div>
+  <div class="hdr-contact">
+    ${storeWa?`<b>WhatsApp:</b> ${storeWa}&nbsp;&nbsp;&nbsp;`:''}
+    ${storeSocial?`<b>Instagram/Email:</b> ${storeSocial}&nbsp;&nbsp;&nbsp;`:''}
+    ${storeAddr?`<b>Dirección:</b> ${storeAddr}`:''}
   </div>
-</div>
-
-<div class="meta-strip">
-  <div class="meta-cell"><div class="mc-label">Fecha</div><div class="mc-val">${fecha}</div></div>
-  <div class="meta-cell"><div class="mc-label">Vence</div><div class="mc-val">${fechaVence}</div></div>
-  <div class="meta-cell"><div class="mc-label">Método de pago</div><div class="mc-val">${v.payMethod||'—'}</div></div>
-  <div class="meta-cell"><div class="mc-label">Estado</div><div class="mc-val"><span class="${isPaid?'badge-paid':'badge-pend'}">${v.payStatus||'Pendiente'}</span></div></div>
-</div>
-
-<div class="body">
-  <div class="section-title">Facturar a</div>
-  <div class="bill-box">
-    <div class="bill-name">${v.clientName&&v.clientName!=='Sin cliente'?v.clientName:'Cliente General'}</div>
-    <div class="bill-detail">
-      ${v.clientTel?`📱 ${v.clientTel}<br>`:''}
-      ${(()=>{const c=db.clients.find(x=>x.id===v.clientId);return c?.email?`✉️ ${c.email}<br>`:''})()}
-    </div>
-  </div>
-
-  <div class="section-title">Detalle de productos</div>
-  <table class="itbl">
-    <thead><tr>
-      <th>#</th><th>SKU</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Total</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-
-  <div class="totals-wrap">
-    <div class="totals">
-      <div class="tot-row"><span>Subtotal</span><span>$${v.subtotal.toFixed(2)}</span></div>
-      ${v.discount>0?`<div class="tot-row"><span>Descuento</span><span style="color:#c4607e">-$${v.discount.toFixed(2)}</span></div>`:''}
-      <div class="tot-row"><span>TOTAL</span><span>$${v.total.toFixed(2)}</span></div>
-    </div>
-  </div>
-
-  ${v.notas?`<div class="section-title">Notas</div><div class="notes">${v.notas}</div>`:''}
-  <div class="notes" style="margin-bottom:0">
-    ✦ Gracias por su preferencia. &nbsp;·&nbsp; Esta factura es válida como comprobante de compra.<br>
-    ${storeWa?`Para cualquier duda comuníquese al ${storeWa}.`:''}
+  <div class="buyer-row">
+    <div class="buyer-cell"><strong>Cliente / Buyer</strong>${v.clientName&&v.clientName!=='Sin cliente'?v.clientName:'—'}${v.clientTel?`<br><span style="color:#888">${v.clientTel}</span>`:''}</div>
+    <div class="buyer-cell"><strong>No. Factura / Invoice</strong>${num}</div>
+    <div class="buyer-cell"><strong>Fecha / Date</strong>${fecha}<br><span style="color:#888;font-size:11px">Pago: ${v.payMethod||'—'} · ${v.payStatus||'—'}</span></div>
   </div>
 </div>
 
-<div class="footer">
-  <div class="footer-left">${storeName}<br>${storeAddr||''}</div>
-  <div class="footer-right">Generado el ${fecha}<br>${storeSocial||''}</div>
+<table class="itbl">
+  <thead><tr>
+    <th style="width:36px">No</th>
+    <th style="width:80px">SKU</th>
+    <th style="width:100px">Foto / Picture</th>
+    <th>Descripción / Description</th>
+    <th style="width:70px">Cantidad</th>
+    <th style="width:90px">Precio Unit.</th>
+    <th style="width:90px">Total</th>
+  </tr></thead>
+  <tbody>${rows}</tbody>
+</table>
+
+<table class="foot-tbl">
+  <tr><td class="lbl" colspan="5" rowspan="4" style="vertical-align:top;font-size:11px;color:#666;padding:10px 12px">
+    ${v.notas?`<b>Notas:</b> ${v.notas}<br>`:''}
+    Esta factura es válida como comprobante de compra.<br>
+    ${storeWa?`Dudas: ${storeWa}`:''}
+  </td>
+    <td class="lbl">Total piezas</td><td class="val">${totalQty}</td></tr>
+  <tr><td class="lbl">Subtotal</td><td class="val">$${v.subtotal.toFixed(2)}</td></tr>
+  ${v.discount>0?`<tr><td class="lbl">Descuento</td><td class="val" style="color:#c4607e">-$${v.discount.toFixed(2)}</td></tr>`:'<tr><td class="lbl">Descuento</td><td class="val">—</td></tr>'}
+  <tr><td class="lbl">Envío / Shipping</td><td class="val">${shipping>0?'$'+shipping.toFixed(2):'—'}</td></tr>
+  <tr class="grand"><td colspan="5"></td><td>TOTAL</td><td style="text-align:right">$${grandTotal.toFixed(2)}</td></tr>
+</table>
+
+<div class="bottom">
+  <div>
+    <div class="sign-box">Firma del cliente / Signature</div>
+  </div>
+  <div style="text-align:right;font-size:11px;color:#888">
+    Generado por ${storeName}<br>${new Date().toLocaleString('es-MX')}
+  </div>
 </div>
 </div>
 
 <div class="action-bar">
   <button class="btn-print" onclick="window.print()">🖨️ Imprimir</button>
-  <button class="btn-pdf" onclick="(function(){const t=document.title;document.title='Factura_${num}';window.print();document.title=t;})()">💾 Guardar PDF</button>
-  <button class="btn-wa" onclick="window.open('https://wa.me/${storeWa.replace(/\\D/g,'')}','_blank')">💬 WhatsApp</button>
+  <button class="btn-pdf" onclick="(function(){const t=document.title;document.title='Factura_${num}_${(v.clientName||'').replace(/\\s+/g,'_')}';window.print();document.title=t;})()">💾 Guardar PDF</button>
+  ${storeWa?`<button class="btn-wa" onclick="window.open('https://wa.me/${storeWa.replace(/\D/g,'')}','_blank')">💬 WhatsApp</button>`:''}
 </div>
 </body></html>`;
 
-  const w=window.open('','_blank','width=820,height=900');
+  const w=window.open('','_blank','width=960,height=900');
   if(w){w.document.write(html);w.document.close();}
   else alert('Activa ventanas emergentes para ver la factura');
 }
