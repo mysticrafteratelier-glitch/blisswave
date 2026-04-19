@@ -1765,7 +1765,7 @@ function renderCli(lista){
     <td><strong>${fmt(c.totalCompras)}</strong></td>
     <td>${pts>0?`<span class="badge b-amber">🎁 ${pts} pts</span>`:`<span style="color:var(--text-light)">0</span>`}</td>
     <td>${c.ultimaCompra?dfmt(c.ultimaCompra):'—'}</td>
-    <td><div style="display:flex;gap:4px"><button class="btn btn-sm" onclick="openCliHist('${c.id}')" title="Historial">📋</button><button class="btn btn-sm btn-outline" onclick="editCli('${c.id}')">✏️</button><button class="btn btn-sm btn-danger" onclick="delCli('${c.id}')">🗑️</button></div></td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap">${(()=>{const _s=getClientSaldo(c.id);const _sb=_s>0?`<button class="btn btn-sm" style="background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7" onclick="openSaldoCli('${c.id}')" title="Saldo a favor">💳 ${fmt(_s)}</button>`:_s<0?`<button class="btn btn-sm" style="background:#ffebee;color:#c62828;border:1px solid #ef9a9a" onclick="openSaldoCli('${c.id}')" title="Saldo pendiente">⚠️ ${fmt(Math.abs(_s))}</button>`:`<button class="btn btn-sm btn-outline" onclick="openSaldoCli('${c.id}')" title="Saldo">💳</button>`;return _sb;})()}<button class="btn btn-sm" onclick="openCliHist('${c.id}')" title="Historial">📋</button><button class="btn btn-sm btn-outline" onclick="editCli('${c.id}')">✏️</button><button class="btn btn-sm btn-danger" onclick="delCli('${c.id}')">🗑️</button></div></td>
   </tr>`}).join('');
 }
 function filtCli(q){renderCli(db.clients.filter(c=>c.nombre.toLowerCase().includes(q.toLowerCase())||(c.tel||'').includes(q)));}
@@ -4998,33 +4998,7 @@ function guardarMovSaldo(){
   toast('✅ Movimiento guardado');
 }
 
-// ---- Actualizar renderCli para mostrar saldo ----
-const _origRenderCli_saldo = renderCli;
-renderCli = function(lista){
-  _origRenderCli_saldo(lista);
-  // Inyectar badges de saldo en cada fila
-  const rows = document.querySelectorAll('#cli-tb tr');
-  rows.forEach(row=>{
-    const editBtn = row.querySelector('button[onclick^="editCli"]');
-    if(!editBtn) return;
-    const cid = editBtn.getAttribute('onclick').match(/'([^']+)'/)?.[1];
-    if(!cid) return;
-    const saldo = getClientSaldo(cid);
-    // Agregar botón de saldo en la columna de acciones
-    const actCell = editBtn.closest('div');
-    if(actCell && !actCell.querySelector('.saldo-btn')){
-      const btn = document.createElement('button');
-      btn.className='btn btn-sm saldo-btn';
-      btn.title='Gestionar saldo';
-      btn.onclick=()=>openSaldoCli(cid);
-      btn.style.cssText=saldo>0?'background:#e8f5e9;color:#2e7d32':'saldo<0?background:#ffebee;color:#c62828:background:var(--dark2)';
-      if(saldo>0) btn.style.cssText='background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7';
-      else if(saldo<0) btn.style.cssText='background:#ffebee;color:#c62828;border:1px solid #ef9a9a';
-      btn.textContent = saldo>0 ? '💳 '+fmt(saldo) : saldo<0 ? '⚠️ '+fmt(Math.abs(saldo)) : '💳';
-      actCell.insertBefore(btn, actCell.firstChild);
-    }
-  });
-};
+// saldo badge ya integrado directamente en renderCli base
 
 // ---- Devolución: ofrecer agregar saldo a favor ----
 const _origConfirmDev = confirmDevolucion;
