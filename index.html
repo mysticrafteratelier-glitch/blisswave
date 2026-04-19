@@ -494,7 +494,23 @@ setTimeout(function(){
         </select>
       </div>
     </div>
-    <div class="field"><label>Cliente</label><select id="pos-cli"><option value="">Sin cliente</option></select></div>
+    <div class="field">
+      <label>Cliente</label>
+      <select id="pos-cli" onchange="onPosCliChange()"><option value="">Sin cliente</option></select>
+    </div>
+    <!-- Panel saldo cliente -->
+    <div id="pos-saldo-panel" style="display:none;background:var(--dark2);border-radius:10px;padding:10px 12px;margin-top:-6px;margin-bottom:6px;font-size:12px">
+      <div id="pos-saldo-favor" style="display:none;color:#4caf50;margin-bottom:5px">💳 Saldo a favor: <strong id="pos-saldo-famt"></strong></div>
+      <div id="pos-saldo-deuda" style="display:none;color:var(--red);margin-bottom:5px">⚠️ Saldo pendiente: <strong id="pos-saldo-damt"></strong></div>
+      <div id="pos-saldo-app-row" style="display:none;align-items:center;gap:6px;margin-top:4px">
+        <span style="color:var(--green)">✅ Crédito aplicado: <strong id="pos-saldo-app-val">$0.00</strong></span>
+        <button onclick="quitarSaldoPOS()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:14px;padding:0 4px">✕</button>
+      </div>
+      <div id="pos-saldo-btn-row" style="display:flex;gap:6px;margin-top:6px">
+        <input type="number" id="pos-saldo-usar" min="0" step="0.01" placeholder="Monto a aplicar" style="flex:1;padding:7px 9px;border:1.5px solid #F5E8EE;border-radius:8px;font-size:12px;background:var(--dark);color:var(--text)">
+        <button class="btn btn-sm" onclick="aplicarSaldoPOS()" style="white-space:nowrap">Aplicar crédito</button>
+      </div>
+    </div>
     <div class="field">
       <label>Método de pago</label>
       <select id="pos-pay-sel" onchange="setPay(this.value)" style="width:100%;padding:9px 11px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;font-family:'DM Sans',sans-serif;color:var(--text);background:var(--cream);">
@@ -1095,6 +1111,44 @@ setTimeout(function(){
   <h3>↩️ Devolución</h3>
   <div id="dev-content"></div>
   <div class="ma" id="dev-ma"></div>
+</div>
+</div>
+
+<!-- Saldo del cliente -->
+<div class="modal-overlay" id="modal-saldo">
+<div class="modal modal-lg">
+  <h3>💳 Saldo del cliente</h3>
+  <div id="saldo-cli-info" style="margin-bottom:14px"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+    <div style="background:var(--dark2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:11px;color:var(--text-light);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Saldo a favor</div>
+      <div id="saldo-favor-disp" style="font-size:22px;font-weight:700;color:#4caf50">$0.00</div>
+    </div>
+    <div style="background:var(--dark2);border-radius:10px;padding:14px;text-align:center">
+      <div style="font-size:11px;color:var(--text-light);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px">Saldo pendiente</div>
+      <div id="saldo-deuda-disp" style="font-size:22px;font-weight:700;color:var(--red)">$0.00</div>
+    </div>
+  </div>
+  <div class="tbl-wrap" style="padding:14px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px">Agregar movimiento</div>
+    <div class="fr2">
+      <div class="fg">
+        <label>Tipo</label>
+        <select id="saldo-tipo" style="width:100%;padding:9px 11px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;background:var(--dark2);color:var(--text)">
+          <option value="favor">➕ Agregar crédito (saldo a favor)</option>
+          <option value="deuda">➖ Agregar deuda (saldo pendiente)</option>
+          <option value="pago">💰 Registrar pago de deuda</option>
+          <option value="uso">🛒 Marcar crédito usado</option>
+        </select>
+      </div>
+      <div class="fg"><label>Monto ($)</label><input type="number" id="saldo-monto" min="0" step="0.01" placeholder="0.00"></div>
+    </div>
+    <div class="fg"><label>Concepto</label><input type="text" id="saldo-concepto" placeholder="Devolución, abono, ajuste..."></div>
+    <div class="ma"><button class="btn" onclick="guardarMovSaldo()">💾 Guardar movimiento</button></div>
+  </div>
+  <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-light)">Historial</div>
+  <div id="saldo-historial" style="max-height:220px;overflow-y:auto"></div>
+  <div class="ma"><button class="btn btn-outline" onclick="closeModal('modal-saldo')">Cerrar</button></div>
 </div>
 </div>
 
@@ -4762,6 +4816,233 @@ function resetSBCfg(){
   loadSBCfgUI();
   toast('↩ Credenciales restauradas');
 }
+
+// ============================================================
+// ============== SISTEMA DE SALDO DE CLIENTES ================
+// ============================================================
+let _saldoAplicadoPOS = 0;
+
+function getClientSaldoData(cid){
+  try{ return JSON.parse(localStorage.getItem('bwc_saldo_'+cid)||'{"saldo":0,"historial":[]}'); }
+  catch(e){ return {saldo:0,historial:[]}; }
+}
+function saveClientSaldoData(cid, data){
+  localStorage.setItem('bwc_saldo_'+cid, JSON.stringify(data));
+}
+function getClientSaldo(cid){
+  return getClientSaldoData(cid).saldo || 0;
+}
+function addClientSaldoTx(cid, monto, concepto, tipo){
+  const data = getClientSaldoData(cid);
+  // tipo: 'favor'(+), 'deuda'(-), 'pago'(reduce deuda), 'uso'(reduce favor)
+  if(tipo==='favor')      data.saldo = +(data.saldo + monto).toFixed(2);
+  else if(tipo==='deuda') data.saldo = +(data.saldo - monto).toFixed(2);
+  else if(tipo==='pago')  data.saldo = Math.min(0, +(data.saldo + monto).toFixed(2));
+  else if(tipo==='uso')   data.saldo = Math.max(data.saldo, 0) - monto;
+  data.historial.unshift({fecha:now(), monto, concepto, tipo, saldoRes:+(data.saldo).toFixed(2)});
+  saveClientSaldoData(cid, data);
+}
+
+// ---- POS: mostrar saldo cuando se elige cliente ----
+function onPosCliChange(){
+  _saldoAplicadoPOS = 0;
+  const cid = document.getElementById('pos-cli').value;
+  const panel = document.getElementById('pos-saldo-panel');
+  if(!cid){ panel.style.display='none'; updateTotal(); return; }
+  const saldo = getClientSaldo(cid);
+  const favorEl  = document.getElementById('pos-saldo-favor');
+  const deudaEl  = document.getElementById('pos-saldo-deuda');
+  const appRow   = document.getElementById('pos-saldo-app-row');
+  const btnRow   = document.getElementById('pos-saldo-btn-row');
+  const usarInp  = document.getElementById('pos-saldo-usar');
+  document.getElementById('pos-saldo-app-val').textContent = '$0.00';
+  appRow.style.display = 'none';
+  if(saldo > 0){
+    favorEl.style.display = 'block';
+    document.getElementById('pos-saldo-famt').textContent = fmt(saldo);
+    deudaEl.style.display = 'none';
+    btnRow.style.display = 'flex';
+    usarInp.max = saldo; usarInp.value = saldo.toFixed(2);
+  } else if(saldo < 0){
+    deudaEl.style.display = 'block';
+    document.getElementById('pos-saldo-damt').textContent = fmt(Math.abs(saldo));
+    favorEl.style.display = 'none';
+    btnRow.style.display = 'none';
+  } else {
+    favorEl.style.display = 'none';
+    deudaEl.style.display = 'none';
+    btnRow.style.display = 'none';
+  }
+  panel.style.display = (saldo !== 0) ? 'block' : 'none';
+  updateTotal();
+}
+
+function aplicarSaldoPOS(){
+  const cid = document.getElementById('pos-cli').value;
+  if(!cid) return;
+  const saldo = getClientSaldo(cid);
+  const usar  = Math.min(parseFloat(document.getElementById('pos-saldo-usar').value)||0, saldo);
+  if(usar <= 0){ toast('Ingresa un monto válido',true); return; }
+  _saldoAplicadoPOS = usar;
+  document.getElementById('pos-saldo-app-val').textContent = fmt(usar);
+  document.getElementById('pos-saldo-app-row').style.display = 'flex';
+  document.getElementById('pos-saldo-btn-row').style.display = 'none';
+  updateTotal();
+  toast('✅ Crédito de '+fmt(usar)+' aplicado');
+}
+
+function quitarSaldoPOS(){
+  _saldoAplicadoPOS = 0;
+  document.getElementById('pos-saldo-app-row').style.display = 'none';
+  const cid = document.getElementById('pos-cli').value;
+  if(cid && getClientSaldo(cid) > 0)
+    document.getElementById('pos-saldo-btn-row').style.display = 'flex';
+  updateTotal();
+}
+
+// Patch updateTotal para descontar saldo aplicado
+const _origUpdateTotalSaldo = updateTotal;
+updateTotal = function(){
+  _origUpdateTotalSaldo();
+  if(_saldoAplicadoPOS > 0){
+    const sub   = cart.reduce((s,i)=>s+i.sub,0);
+    const discV = +document.getElementById('pos-disc').value||0;
+    const discT = document.getElementById('pos-disc-type')?.value||'$';
+    const disc  = discT==='%'? sub*(discV/100): discV;
+    const ship  = (typeof posDeliveryType!=='undefined'&&posDeliveryType==='envio')?(+document.getElementById('pos-ship-cost')?.value||0):0;
+    const base  = Math.max(0, sub - disc) + ship;
+    const final = Math.max(0, base - _saldoAplicadoPOS);
+    const rBtn  = document.getElementById('reg-total');
+    const regBtn= document.getElementById('reg-btn');
+    if(rBtn)  rBtn.textContent = final.toFixed(2);
+    if(regBtn && cart.length) regBtn.disabled = false;
+  }
+};
+
+// Patch registerSale para guardar saldo aplicado
+const _origRegisterSale = registerSale;
+registerSale = function(){
+  // Si hay saldo aplicado, ajustar el descuento antes de registrar
+  if(_saldoAplicadoPOS > 0){
+    const cid = document.getElementById('pos-cli').value;
+    const discEl = document.getElementById('pos-disc');
+    const discTEl= document.getElementById('pos-disc-type');
+    // Convertir saldo a descuento $ equivalente sumando al descuento existente
+    const sub   = cart.reduce((s,i)=>s+i.sub,0);
+    const prevD = discTEl?.value==='%'? sub*((+discEl.value||0)/100): (+discEl.value||0);
+    const _prevDiscVal = discEl.value;
+    const _prevDiscType = discTEl?.value;
+    discEl.value = (prevD + _saldoAplicadoPOS).toFixed(2);
+    if(discTEl) discTEl.value = '$';
+    _origRegisterSale();
+    // Descontar del saldo del cliente
+    if(cid) addClientSaldoTx(cid, _saldoAplicadoPOS, 'Crédito aplicado en venta', 'uso');
+    _saldoAplicadoPOS = 0;
+    // Restaurar UI
+    document.getElementById('pos-saldo-app-row').style.display='none';
+  } else {
+    _origRegisterSale();
+  }
+  onPosCliChange(); // refrescar panel
+};
+
+// ---- Modal gestión de saldo (desde Clientes) ----
+let _saldoCliId = null;
+function openSaldoCli(cid){
+  _saldoCliId = cid;
+  const cli = db.clients.find(x=>x.id===cid);
+  const data = getClientSaldoData(cid);
+  const saldo = data.saldo||0;
+  document.getElementById('saldo-cli-info').innerHTML =
+    `<strong style="font-size:15px">${cli?.nombre||'Cliente'}</strong>`;
+  document.getElementById('saldo-favor-disp').textContent = saldo>=0 ? fmt(saldo) : '$0.00';
+  document.getElementById('saldo-deuda-disp').textContent = saldo<0  ? fmt(Math.abs(saldo)) : '$0.00';
+  document.getElementById('saldo-monto').value = '';
+  document.getElementById('saldo-concepto').value = '';
+  renderSaldoHistorial(data.historial||[]);
+  openModal('modal-saldo');
+}
+
+function renderSaldoHistorial(hist){
+  const el = document.getElementById('saldo-historial');
+  if(!hist.length){ el.innerHTML='<p style="color:var(--text-light);font-size:12px;text-align:center;padding:10px">Sin movimientos</p>'; return; }
+  el.innerHTML = hist.map(h=>{
+    const color = h.tipo==='favor'||h.tipo==='pago' ? '#4caf50' : '#e57373';
+    const sign  = h.tipo==='favor'||h.tipo==='pago' ? '+' : '-';
+    const label = {favor:'Crédito agregado',deuda:'Deuda registrada',pago:'Pago de deuda',uso:'Crédito usado'}[h.tipo]||h.tipo;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(232,180,174,.15);font-size:12px">
+      <div>
+        <div style="font-weight:600;color:var(--text)">${label}</div>
+        <div style="color:var(--text-light)">${h.concepto||'—'} · ${dfmt(h.fecha)}</div>
+      </div>
+      <div style="font-weight:700;color:${color}">${sign}${fmt(h.monto)}</div>
+    </div>`;
+  }).join('');
+}
+
+function guardarMovSaldo(){
+  const cid = _saldoCliId; if(!cid) return;
+  const tipo    = document.getElementById('saldo-tipo').value;
+  const monto   = parseFloat(document.getElementById('saldo-monto').value)||0;
+  const concepto= document.getElementById('saldo-concepto').value.trim()||'Ajuste manual';
+  if(monto <= 0){ toast('Ingresa un monto válido',true); return; }
+  addClientSaldoTx(cid, monto, concepto, tipo);
+  const data = getClientSaldoData(cid);
+  const saldo = data.saldo;
+  document.getElementById('saldo-favor-disp').textContent = saldo>=0 ? fmt(saldo) : '$0.00';
+  document.getElementById('saldo-deuda-disp').textContent = saldo<0  ? fmt(Math.abs(saldo)) : '$0.00';
+  document.getElementById('saldo-monto').value = '';
+  document.getElementById('saldo-concepto').value = '';
+  renderSaldoHistorial(data.historial||[]);
+  renderCli();
+  toast('✅ Movimiento guardado');
+}
+
+// ---- Actualizar renderCli para mostrar saldo ----
+const _origRenderCli_saldo = renderCli;
+renderCli = function(lista){
+  _origRenderCli_saldo(lista);
+  // Inyectar badges de saldo en cada fila
+  const rows = document.querySelectorAll('#cli-tb tr');
+  rows.forEach(row=>{
+    const editBtn = row.querySelector('button[onclick^="editCli"]');
+    if(!editBtn) return;
+    const cid = editBtn.getAttribute('onclick').match(/'([^']+)'/)?.[1];
+    if(!cid) return;
+    const saldo = getClientSaldo(cid);
+    // Agregar botón de saldo en la columna de acciones
+    const actCell = editBtn.closest('div');
+    if(actCell && !actCell.querySelector('.saldo-btn')){
+      const btn = document.createElement('button');
+      btn.className='btn btn-sm saldo-btn';
+      btn.title='Gestionar saldo';
+      btn.onclick=()=>openSaldoCli(cid);
+      btn.style.cssText=saldo>0?'background:#e8f5e9;color:#2e7d32':'saldo<0?background:#ffebee;color:#c62828:background:var(--dark2)';
+      if(saldo>0) btn.style.cssText='background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7';
+      else if(saldo<0) btn.style.cssText='background:#ffebee;color:#c62828;border:1px solid #ef9a9a';
+      btn.textContent = saldo>0 ? '💳 '+fmt(saldo) : saldo<0 ? '⚠️ '+fmt(Math.abs(saldo)) : '💳';
+      actCell.insertBefore(btn, actCell.firstChild);
+    }
+  });
+};
+
+// ---- Devolución: ofrecer agregar saldo a favor ----
+const _origConfirmDev = confirmDevolucion;
+confirmDevolucion = function(saleId){
+  _origConfirmDev(saleId);
+  const v = db.sales.find(x=>x.id===saleId);
+  if(!v || !v.clientId) return;
+  const cli = db.clients.find(x=>x.id===v.clientId);
+  if(!cli) return;
+  const devItems = (v.items||[]).filter((_,i)=>document.getElementById('dev-chk-'+i)?.checked);
+  const monto = devItems.reduce((s,item)=>s+(item.price||0)*(+document.getElementById('dev-qty-'+i)?.value||1),0);
+  // Pedir confirmación para agregar crédito
+  if(monto>0 && confirm(`¿Agregar ${fmt(monto)} como saldo a favor para ${cli.nombre}?\n\nPodrá usarlo en su próxima compra.`)){
+    addClientSaldoTx(v.clientId, monto, `Devolución BWC-${saleId.slice(-6).toUpperCase()}`, 'favor');
+    toast(`💳 ${fmt(monto)} agregado como saldo a favor de ${cli.nombre}`);
+    renderCli();
+  }
+};
 </script>
 </body>
 </html>
