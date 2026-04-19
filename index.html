@@ -758,6 +758,8 @@ setTimeout(function(){
       <div class="fg"><label>Nombre de la tienda</label><input id="cfg-nombre" type="text" placeholder="BlissWave Collection"></div>
       <div class="fg"><label>Slogan / subtítulo</label><input id="cfg-slogan" type="text" placeholder="Collection"></div>
       <div class="fg"><label>WhatsApp (para recibos)</label><input id="cfg-wa" type="tel" placeholder="+1 555 000 0000"></div>
+      <div class="fg"><label>Dirección / Ciudad</label><input id="cfg-addr" type="text" placeholder="Ciudad, Estado, País"></div>
+      <div class="fg"><label>Instagram / Email</label><input id="cfg-social" type="text" placeholder="@blisswave o correo@email.com"></div>
       <div class="ma"><button class="btn" onclick="saveCfg()">Guardar</button></div>
     </div>
     <!-- Logo -->
@@ -1607,7 +1609,8 @@ function renderVen(lista){
         }
       </td>
       <td style="display:flex;gap:4px;align-items:center">
-        <button onclick="genInvoice('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:17px" title="Ver factura">🧾</button>
+        <button onclick="genInvoice('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:17px" title="Recibo BlissWave">🧾</button>
+        <button onclick="genCMInvoice('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:17px" title="Factura formal">📄</button>
         <button onclick="openDevolucion('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:15px" title="Devolución">↩️</button>
       </td>
     </tr>`;
@@ -2102,6 +2105,176 @@ function shareWA(){
 }
 
 // ============================================================
+// =================== CM-STYLE INVOICE =======================
+// ============================================================
+function genCMInvoice(saleId){
+  const v=db.sales.find(x=>x.id===saleId);if(!v)return;
+  const cfg=JSON.parse(localStorage.getItem('bwc_cfg')||'{}');
+  const storeName=cfg.nombre||'BlissWave Collection';
+  const storeSlogan=cfg.slogan||'Joyería fina';
+  const storeWa=cfg.wa||'';
+  const storeAddr=cfg.addr||'';
+  const storeSocial=cfg.social||'';
+  const logoSrc=localStorage.getItem('pwa_icon_192')||'';
+  const num='BWC-'+saleId.slice(-6).toUpperCase();
+  const fecha=new Date(v.fecha).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const fechaVence=new Date(new Date(v.fecha).getTime()+30*86400000).toLocaleDateString('es-MX',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const items=v.items||[];
+  const isPaid=v.payStatus==='Pagado';
+
+  const rows=items.filter(i=>!i.isGift).map((item,i)=>`
+    <tr>
+      <td style="text-align:center;color:#666">${i+1}</td>
+      <td style="font-family:monospace;font-size:11px;color:#555">${item.sku||'—'}</td>
+      <td>${item.name||item.nombre||''}</td>
+      <td style="text-align:center">${item.qty||1}</td>
+      <td style="text-align:right">$${parseFloat(item.price||0).toFixed(2)}</td>
+      <td style="text-align:right;font-weight:600">$${parseFloat(item.sub||0).toFixed(2)}</td>
+    </tr>`).join('');
+
+  const html=`<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Factura ${num}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:#f0f0f0;color:#222;font-size:13px;}
+.page{max-width:760px;margin:20px auto;background:#fff;box-shadow:0 2px 16px rgba(0,0,0,.12);}
+/* Header */
+.hdr{background:#1a1a2e;color:#fff;padding:28px 36px;display:flex;justify-content:space-between;align-items:flex-start;}
+.hdr-logo{display:flex;align-items:center;gap:14px;}
+.hdr-logo img{width:56px;height:56px;border-radius:8px;object-fit:cover;border:1.5px solid rgba(255,255,255,.2);}
+.hdr-logo .logo-ph{width:56px;height:56px;border-radius:8px;background:rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;font-size:26px;}
+.store-name{font-size:20px;font-weight:700;letter-spacing:.3px;}
+.store-sub{font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;letter-spacing:.5px;}
+.store-contact{font-size:11px;color:rgba(255,255,255,.55);margin-top:6px;line-height:1.7;}
+.hdr-right{text-align:right;}
+.inv-label{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:4px;}
+.inv-num{font-size:26px;font-weight:700;letter-spacing:1px;color:#e8b4ae;}
+/* Meta strip */
+.meta-strip{background:#f8f8f8;border-bottom:1px solid #e8e8e8;padding:14px 36px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.meta-cell .mc-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#999;margin-bottom:3px;}
+.meta-cell .mc-val{font-size:13px;font-weight:600;color:#222;}
+/* Status badge */
+.badge-paid{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block;}
+.badge-pend{background:#fff8e1;color:#f57f17;border:1px solid #ffe082;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;display:inline-block;}
+/* Body */
+.body{padding:28px 36px;}
+/* Bill To */
+.section-title{font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:#999;margin-bottom:8px;padding-bottom:5px;border-bottom:2px solid #1a1a2e;}
+.bill-box{background:#fafafa;border:1px solid #e8e8e8;border-radius:6px;padding:14px 16px;margin-bottom:24px;}
+.bill-name{font-size:15px;font-weight:700;margin-bottom:4px;}
+.bill-detail{font-size:12px;color:#666;line-height:1.8;}
+/* Table */
+.itbl{width:100%;border-collapse:collapse;margin-bottom:20px;}
+.itbl thead tr{background:#1a1a2e;color:#fff;}
+.itbl thead th{padding:10px 12px;font-size:10px;text-transform:uppercase;letter-spacing:.8px;font-weight:600;text-align:left;}
+.itbl thead th:last-child,.itbl thead th:nth-child(4),.itbl thead th:nth-child(5){text-align:right;}
+.itbl thead th:nth-child(1){text-align:center;width:36px;}
+.itbl tbody tr{border-bottom:1px solid #f0f0f0;}
+.itbl tbody tr:last-child{border-bottom:none;}
+.itbl tbody td{padding:10px 12px;vertical-align:top;}
+.itbl tbody tr:nth-child(even){background:#fafafa;}
+/* Totals */
+.totals-wrap{display:flex;justify-content:flex-end;margin-bottom:24px;}
+.totals{width:260px;}
+.tot-row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;color:#555;border-bottom:1px solid #f0f0f0;}
+.tot-row:last-child{border-bottom:none;margin-top:6px;padding-top:10px;font-size:16px;font-weight:700;color:#1a1a2e;}
+.tot-row:last-child span:last-child{color:#c4607e;}
+/* Notes */
+.notes{background:#fffbf0;border-left:3px solid #e8b4ae;padding:12px 16px;border-radius:0 6px 6px 0;margin-bottom:24px;font-size:12px;color:#555;line-height:1.7;}
+/* Footer */
+.footer{background:#1a1a2e;padding:16px 36px;display:flex;justify-content:space-between;align-items:center;}
+.footer-left{font-size:11px;color:rgba(255,255,255,.4);line-height:1.8;}
+.footer-right{font-size:11px;color:rgba(255,255,255,.4);text-align:right;line-height:1.8;}
+/* Actions */
+.action-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e0e0e0;padding:12px 20px 18px;display:flex;gap:8px;justify-content:center;}
+.action-bar button{padding:11px 24px;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:13px;cursor:pointer;}
+.btn-print{background:#1a1a2e;color:#fff;}
+.btn-pdf{background:#c4607e;color:#fff;}
+.btn-wa{background:#25D366;color:#fff;}
+@media print{.action-bar{display:none;}body{background:#fff;}.page{box-shadow:none;margin:0;max-width:100%;}}
+</style></head><body>
+<div class="page">
+
+<div class="hdr">
+  <div class="hdr-logo">
+    ${logoSrc?`<img src="data:image/png;base64,${logoSrc}" alt="logo">`:`<div class="logo-ph">🌸</div>`}
+    <div>
+      <div class="store-name">${storeName}</div>
+      <div class="store-sub">${storeSlogan}</div>
+      <div class="store-contact">
+        ${storeAddr?`📍 ${storeAddr}<br>`:''}
+        ${storeWa?`📱 ${storeWa}<br>`:''}
+        ${storeSocial?`✦ ${storeSocial}`:''}
+      </div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="inv-label">Factura</div>
+    <div class="inv-num">${num}</div>
+  </div>
+</div>
+
+<div class="meta-strip">
+  <div class="meta-cell"><div class="mc-label">Fecha</div><div class="mc-val">${fecha}</div></div>
+  <div class="meta-cell"><div class="mc-label">Vence</div><div class="mc-val">${fechaVence}</div></div>
+  <div class="meta-cell"><div class="mc-label">Método de pago</div><div class="mc-val">${v.payMethod||'—'}</div></div>
+  <div class="meta-cell"><div class="mc-label">Estado</div><div class="mc-val"><span class="${isPaid?'badge-paid':'badge-pend'}">${v.payStatus||'Pendiente'}</span></div></div>
+</div>
+
+<div class="body">
+  <div class="section-title">Facturar a</div>
+  <div class="bill-box">
+    <div class="bill-name">${v.clientName&&v.clientName!=='Sin cliente'?v.clientName:'Cliente General'}</div>
+    <div class="bill-detail">
+      ${v.clientTel?`📱 ${v.clientTel}<br>`:''}
+      ${(()=>{const c=db.clients.find(x=>x.id===v.clientId);return c?.email?`✉️ ${c.email}<br>`:''})()}
+    </div>
+  </div>
+
+  <div class="section-title">Detalle de productos</div>
+  <table class="itbl">
+    <thead><tr>
+      <th>#</th><th>SKU</th><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Total</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+
+  <div class="totals-wrap">
+    <div class="totals">
+      <div class="tot-row"><span>Subtotal</span><span>$${v.subtotal.toFixed(2)}</span></div>
+      ${v.discount>0?`<div class="tot-row"><span>Descuento</span><span style="color:#c4607e">-$${v.discount.toFixed(2)}</span></div>`:''}
+      <div class="tot-row"><span>TOTAL</span><span>$${v.total.toFixed(2)}</span></div>
+    </div>
+  </div>
+
+  ${v.notas?`<div class="section-title">Notas</div><div class="notes">${v.notas}</div>`:''}
+  <div class="notes" style="margin-bottom:0">
+    ✦ Gracias por su preferencia. &nbsp;·&nbsp; Esta factura es válida como comprobante de compra.<br>
+    ${storeWa?`Para cualquier duda comuníquese al ${storeWa}.`:''}
+  </div>
+</div>
+
+<div class="footer">
+  <div class="footer-left">${storeName}<br>${storeAddr||''}</div>
+  <div class="footer-right">Generado el ${fecha}<br>${storeSocial||''}</div>
+</div>
+</div>
+
+<div class="action-bar">
+  <button class="btn-print" onclick="window.print()">🖨️ Imprimir</button>
+  <button class="btn-pdf" onclick="(function(){const t=document.title;document.title='Factura_${num}';window.print();document.title=t;})()">💾 Guardar PDF</button>
+  <button class="btn-wa" onclick="window.open('https://wa.me/${storeWa.replace(/\\D/g,'')}','_blank')">💬 WhatsApp</button>
+</div>
+</body></html>`;
+
+  const w=window.open('','_blank','width=820,height=900');
+  if(w){w.document.write(html);w.document.close();}
+  else alert('Activa ventanas emergentes para ver la factura');
+}
+
+// ============================================================
 // ==================== BARCODE GEN ===========================
 // ============================================================
 function showBC(prodId){
@@ -2390,7 +2563,7 @@ function renderDash(){
 // =================== CONFIG / SETTINGS ======================
 // ============================================================
 function saveCfg(){
-  const cfg={nombre:document.getElementById('cfg-nombre').value.trim()||'BlissWave',slogan:document.getElementById('cfg-slogan').value.trim()||'Collection',wa:document.getElementById('cfg-wa').value.trim()};
+  const cfg={nombre:document.getElementById('cfg-nombre').value.trim()||'BlissWave',slogan:document.getElementById('cfg-slogan').value.trim()||'Collection',wa:document.getElementById('cfg-wa').value.trim(),addr:document.getElementById('cfg-addr').value.trim(),social:document.getElementById('cfg-social').value.trim()};
   localStorage.setItem('bwc_cfg',JSON.stringify(cfg));
   // Update header
   document.querySelector('.brand-name').textContent=cfg.nombre;
@@ -2402,6 +2575,8 @@ function loadCfg(){
     const cfg=JSON.parse(localStorage.getItem('bwc_cfg')||'{}');
     if(cfg.nombre){document.querySelector('.brand-name').textContent=cfg.nombre;document.getElementById('cfg-nombre').value=cfg.nombre;}
     if(cfg.slogan){document.querySelector('.brand-sub').textContent=cfg.slogan;document.getElementById('cfg-slogan').value=cfg.slogan;}
+    if(cfg.addr){document.getElementById('cfg-addr').value=cfg.addr;}
+    if(cfg.social){document.getElementById('cfg-social').value=cfg.social;}
     if(cfg.wa) document.getElementById('cfg-wa').value=cfg.wa;
     // Theme
     const theme=localStorage.getItem('bwc_theme')||'light';
@@ -3008,7 +3183,8 @@ renderVen=function(lista){
         }
       </td>
       <td style="display:flex;gap:4px;align-items:center">
-        <button onclick="genInvoice('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:17px" title="Ver factura">🧾</button>
+        <button onclick="genInvoice('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:17px" title="Recibo BlissWave">🧾</button>
+        <button onclick="genCMInvoice('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:17px" title="Factura formal">📄</button>
         <button onclick="openDevolucion('${v.id}')" style="background:none;border:none;cursor:pointer;font-size:15px" title="Devolución">↩️</button>
         ${waBtn}
       </td>
