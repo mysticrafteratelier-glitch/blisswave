@@ -4920,28 +4920,23 @@ updateTotal = function(){
 };
 
 // Patch registerSale para guardar saldo aplicado
-const _origRegisterSale = registerSale;
+const _origRegisterSaleSaldo = registerSale;
 registerSale = function(){
   // Si hay saldo aplicado, ajustar el descuento antes de registrar
   if(_saldoAplicadoPOS > 0){
     const cid = document.getElementById('pos-cli').value;
     const discEl = document.getElementById('pos-disc');
     const discTEl= document.getElementById('pos-disc-type');
-    // Convertir saldo a descuento $ equivalente sumando al descuento existente
     const sub   = cart.reduce((s,i)=>s+i.sub,0);
     const prevD = discTEl?.value==='%'? sub*((+discEl.value||0)/100): (+discEl.value||0);
-    const _prevDiscVal = discEl.value;
-    const _prevDiscType = discTEl?.value;
     discEl.value = (prevD + _saldoAplicadoPOS).toFixed(2);
     if(discTEl) discTEl.value = '$';
-    _origRegisterSale();
-    // Descontar del saldo del cliente
+    _origRegisterSaleSaldo();
     if(cid) addClientSaldoTx(cid, _saldoAplicadoPOS, 'Crédito aplicado en venta', 'uso');
     _saldoAplicadoPOS = 0;
-    // Restaurar UI
     document.getElementById('pos-saldo-app-row').style.display='none';
   } else {
-    _origRegisterSale();
+    _origRegisterSaleSaldo();
   }
   onPosCliChange(); // refrescar panel
 };
