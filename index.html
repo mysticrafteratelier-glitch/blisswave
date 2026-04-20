@@ -373,13 +373,20 @@ body.dark .pr-item:hover{background:#3D2035!important;}
 </div>
 
 <!-- ===== TIENDA PÚBLICA (link ?buy=ID) ===== -->
-<div id="shop-overlay" style="display:none;position:fixed;inset:0;background:#FEF5F5;z-index:2000;overflow-y:auto;font-family:'DM Sans',sans-serif">
-  <div style="max-width:440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column">
-    <div style="background:linear-gradient(135deg,#2D1525,#7D3040);padding:18px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0">
-      <div style="font-family:'Playfair Display',serif;color:#FAE0E0;font-size:18px;flex:1">BlissWave Collection</div>
-      <div style="font-size:10px;letter-spacing:2px;color:rgba(250,224,224,.5);text-transform:uppercase">Joyería</div>
+<div id="shop-overlay" style="display:none;position:fixed;inset:0;background:#1a0a10;z-index:2000;overflow-y:auto;font-family:'DM Sans',sans-serif">
+  <div style="max-width:480px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;background:#fff">
+    <div style="background:linear-gradient(135deg,#1a0a10 0%,#7D3040 60%,#C4607E 100%);padding:22px 20px 28px;position:relative;overflow:hidden">
+      <div style="position:absolute;inset:0;background:url('data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22><circle cx=%2230%22 cy=%2230%22 r=%2228%22 fill=%22none%22 stroke=%22rgba(255,255,255,.04)%22 stroke-width=%221%22/></svg>') repeat;"></div>
+      <div style="position:relative">
+        <div style="font-size:10px;letter-spacing:3px;color:rgba(250,224,224,.5);text-transform:uppercase;margin-bottom:4px">Joyería fina</div>
+        <div style="font-family:'Playfair Display',serif;color:#FAE0E0;font-size:22px;font-weight:700;letter-spacing:.5px">BlissWave Collection</div>
+        <div style="font-size:11px;color:rgba(250,224,224,.45);margin-top:4px">✨ Cada pieza cuenta una historia</div>
+      </div>
     </div>
-    <div id="shop-content" style="flex:1;padding:20px 16px 40px"></div>
+    <div id="shop-content" style="flex:1;padding:0 0 60px"></div>
+    <div style="text-align:center;padding:16px;background:#FAF0F2;border-top:1px solid #F5E8EE;font-size:11px;color:#A07880">
+      🌸 BlissWave Collection &nbsp;·&nbsp; Joyería artesanal
+    </div>
   </div>
 </div>
 
@@ -3840,6 +3847,14 @@ function toggleInvCatVal(){
 // ============================================================
 // ===== FEATURE 6: PANTALLA POR COBRAR =======================
 // ============================================================
+function _timeAgo(fecha){
+  const mins=Math.round((Date.now()-new Date(fecha))/60000);
+  if(mins<1)return 'ahora mismo';
+  if(mins<60)return `hace ${mins} min`;
+  const hrs=Math.round(mins/60);
+  if(hrs<24)return `hace ${hrs}h`;
+  return dfmt(fecha);
+}
 function renderPedidosClientes(){
   const pedidos=db.sales.filter(v=>v.payStatus==='pendiente_cliente');
   const wrap=document.getElementById('pedidos-cli-wrap');
@@ -3849,20 +3864,33 @@ function renderPedidosClientes(){
   document.getElementById('pcli-count').textContent=`· ${pedidos.length} pedido${pedidos.length>1?'s':''}`;
   document.getElementById('pcli-list').innerHTML=pedidos
     .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))
-    .map(v=>`
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(125,48,64,.12)">
-        <div>
-          <strong style="font-size:13px;color:#2D1525">${v.clientName||'Cliente'}</strong>
-          ${v.clientTel?`<span style="font-size:11px;color:#7D3040;margin-left:6px">📱 ${v.clientTel}</span>`:''}
-          <span style="font-size:11px;color:#A07880;margin-left:6px">${dfmt(v.fecha)}</span>
-          ${v.items&&v.items.length?`<div style="font-size:11px;color:#A07880">${v.items.map(i=>i.name+' x'+i.qty).join(', ').substring(0,60)}</div>`:''}
+    .map(v=>{
+      const prod=v.items&&v.items[0];
+      const foto=prod?db.prods.find(p=>p.id===prod.prodId)?.foto:null;
+      const tel=(v.clientTel||'').replace(/\D/g,'');
+      return `<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(125,48,64,.1);align-items:flex-start">
+        ${foto
+          ?`<img src="${foto}" style="width:48px;height:48px;border-radius:8px;object-fit:cover;flex-shrink:0">`
+          :`<div style="width:48px;height:48px;border-radius:8px;background:#F5E8EE;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">💛</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px">
+            <div>
+              <strong style="font-size:13px;color:#2D1525">${v.clientName||'Cliente'}</strong>
+              <span style="font-size:10px;color:#A07880;margin-left:6px">${_timeAgo(v.fecha)}</span>
+            </div>
+            <strong style="font-size:14px;color:#7D3040;white-space:nowrap;font-family:'Playfair Display',serif">${fmt(v.total)}</strong>
+          </div>
+          ${prod?`<div style="font-size:11px;color:#7D3040;margin-top:2px">${prod.name} × ${prod.qty}</div>`:''}
+          ${v.notas?`<div style="font-size:11px;color:#A07880;font-style:italic;margin-top:2px">📝 ${v.notas}</div>`:''}
+          ${v.clientTel?`<div style="font-size:11px;color:#A07880;margin-top:2px">📱 ${v.clientTel}</div>`:''}
+          <div style="display:flex;gap:6px;margin-top:7px">
+            <button onclick="aprobarPedidoCliente('${v.id}')" style="background:linear-gradient(135deg,#4CAF7A,#3a9e62);color:#fff;border:none;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">✅ Aprobar</button>
+            ${tel?`<a href="https://wa.me/${tel}" target="_blank" style="background:#25D366;color:#fff;border-radius:8px;padding:5px 12px;font-size:11px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:4px">💬 WhatsApp</a>`:''}
+            <button onclick="if(confirm('¿Rechazar pedido?')){db.sales=db.sales.filter(s=>s.id!=='${v.id}');renderVen();}" style="background:#fee;color:#c00;border:1px solid #f5c6cb;border-radius:8px;padding:5px 10px;font-size:11px;cursor:pointer">✕</button>
+          </div>
         </div>
-        <div style="display:flex;align-items:center;gap:7px;flex-shrink:0">
-          <strong style="font-family:'Playfair Display',serif;color:#7D3040">${fmt(v.total)}</strong>
-          <button onclick="aprobarPedidoCliente('${v.id}')" style="background:var(--green);color:#fff;border:none;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer">✅ Aprobar</button>
-          ${v.clientTel?`<a href="https://wa.me/${(v.clientTel||'').replace(/\D/g,'')}" target="_blank" style="font-size:16px;text-decoration:none" title="WhatsApp">💬</a>`:''}
-        </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
 }
 function renderPorCobrar(){
   const pendientes=db.sales.filter(v=>v.payStatus==='Pendiente'||v.payStatus==='Dev. Parcial');
@@ -4624,44 +4652,83 @@ async function initShopPage(){
 }
 function renderShopPage(p){
   const sc=document.getElementById('shop-content');
+  const catLabel={'B':'Pulsera','E':'Arete','P':'Dije','N':'Collar','R':'Anillo','Pulsera':'Pulsera','Arete':'Arete','Collar':'Collar','Anillo':'Anillo','Dije':'Dije','Tobillera':'Tobillera','Cadena':'Cadena','Set':'Set'};
+  const cat=catLabel[p.categoria]||p.categoria||'';
+  const disponible=p.stock>0;
   sc.innerHTML=`
-    ${p.foto?`<img src="${p.foto}" style="width:100%;max-height:320px;object-fit:cover;border-radius:16px;margin-bottom:16px">`
-      :'<div style="width:100%;height:200px;background:#F5E8EE;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:48px;margin-bottom:16px">💛</div>'}
-    <div style="font-family:\'Playfair Display\',serif;font-size:22px;color:#2D1525;margin-bottom:4px">${p.nombre||'Producto'}</div>
-    <div style="font-size:13px;color:#A07880;margin-bottom:16px">${p.proveedor||''}</div>
-    <div style="font-size:28px;font-weight:700;color:#7D3040;margin-bottom:20px">$${(+p.precio).toFixed(2)}</div>
-    ${p.stock>0
-      ?`<div style="background:#E8F8EF;border-radius:10px;padding:8px 14px;font-size:12px;color:#2D8A55;margin-bottom:20px;display:inline-block">✅ Disponible · ${p.stock} en stock</div>`
-      :'<div style="background:#FEE;border-radius:10px;padding:8px 14px;font-size:12px;color:#c00;margin-bottom:20px;display:inline-block">⚠️ Sin stock</div>'}
-    <div style="background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:16px">
-      <div style="font-size:13px;font-weight:600;color:#2D1525;margin-bottom:12px">📋 Tus datos para el pedido</div>
-      <input id="shop-nombre" type="text" placeholder="Tu nombre" style="width:100%;padding:10px 13px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:14px;margin-bottom:10px;font-family:\'DM Sans\',sans-serif;box-sizing:border-box">
-      <input id="shop-tel" type="tel" placeholder="Tu teléfono / WhatsApp" style="width:100%;padding:10px 13px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:14px;margin-bottom:10px;font-family:\'DM Sans\',sans-serif;box-sizing:border-box">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
-        <span style="font-size:13px;color:#7D3040">Cantidad:</span>
-        <button onclick="shopQty(-1)" style="width:32px;height:32px;border-radius:50%;border:1.5px solid #F5E8EE;background:#fff;font-size:18px;cursor:pointer">−</button>
-        <span id="shop-qty" style="font-size:18px;font-weight:700;min-width:24px;text-align:center">1</span>
-        <button onclick="shopQty(1)" style="width:32px;height:32px;border-radius:50%;border:1.5px solid #F5E8EE;background:#fff;font-size:18px;cursor:pointer">+</button>
-      </div>
+    <div style="position:relative">
+      ${p.foto
+        ?`<img src="${p.foto}" style="width:100%;height:320px;object-fit:cover;display:block">`
+        :`<div style="width:100%;height:260px;background:linear-gradient(135deg,#F5E8EE,#FAD0DC);display:flex;align-items:center;justify-content:center;font-size:72px">💛</div>`}
+      ${disponible
+        ?`<div style="position:absolute;top:14px;right:14px;background:rgba(45,138,85,.9);color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:20px;letter-spacing:.5px">✓ DISPONIBLE</div>`
+        :`<div style="position:absolute;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center"><div style="background:#c00;color:#fff;font-size:14px;font-weight:700;padding:10px 24px;border-radius:8px;letter-spacing:1px">AGOTADO</div></div>`}
     </div>
-    <button onclick="submitShopOrder('${p.id}','${(p.nombre||'').replace(/'/g,'')}',${+p.precio},${+p.costo})" ${p.stock<=0?'disabled':''} style="width:100%;padding:15px;background:linear-gradient(135deg,#C4607E,#C4847A);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">
-      🛍️ Pedir ahora
-    </button>
-    <div id="shop-msg" style="margin-top:12px;text-align:center;font-size:13px"></div>
-    <div style="text-align:center;margin-top:20px;font-size:11px;color:#C4847A">BlissWave Collection · Joyería</div>`;
+    <div style="padding:20px 18px 0">
+      ${cat?`<div style="display:inline-block;background:#F5E8EE;color:#7D3040;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:20px;margin-bottom:10px">${cat}</div>`:''}
+      <div style="font-family:'Playfair Display',serif;font-size:24px;color:#2D1525;line-height:1.25;margin-bottom:6px">${p.nombre||'Producto'}</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin:12px 0 18px">
+        <div style="font-size:32px;font-weight:700;color:#7D3040;font-family:'Playfair Display',serif">$${(+p.precio).toFixed(2)}</div>
+        <div style="font-size:12px;color:#A07880">USD</div>
+      </div>
+      <div style="height:1px;background:#F5E8EE;margin-bottom:18px"></div>
+      ${disponible?`
+      <div style="background:#FAFAFA;border:1.5px solid #F0E0E6;border-radius:14px;padding:18px;margin-bottom:16px">
+        <div style="font-size:12px;font-weight:700;color:#7D3040;letter-spacing:.5px;text-transform:uppercase;margin-bottom:14px">Hacer pedido</div>
+        <div style="position:relative;margin-bottom:10px">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px">👤</span>
+          <input id="shop-nombre" type="text" placeholder="Tu nombre completo" style="width:100%;padding:11px 13px 11px 36px;border:1.5px solid #F0E0E6;border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;background:#fff;outline:none">
+        </div>
+        <div style="position:relative;margin-bottom:10px">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:15px">📱</span>
+          <input id="shop-tel" type="tel" placeholder="WhatsApp (ej: +1 555 0000)" style="width:100%;padding:11px 13px 11px 36px;border:1.5px solid #F0E0E6;border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;background:#fff;outline:none">
+        </div>
+        <div style="position:relative;margin-bottom:14px">
+          <span style="position:absolute;left:12px;top:12px;font-size:15px">📝</span>
+          <textarea id="shop-notas" placeholder="Notas adicionales (opcional)" rows="2" style="width:100%;padding:11px 13px 11px 36px;border:1.5px solid #F0E0E6;border-radius:10px;font-size:14px;font-family:'DM Sans',sans-serif;box-sizing:border-box;background:#fff;outline:none;resize:none"></textarea>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;background:#fff;border:1.5px solid #F0E0E6;border-radius:10px;padding:10px 14px;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:600;color:#2D1525">Cantidad</span>
+          <div style="display:flex;align-items:center;gap:12px">
+            <button onclick="shopQty(-1)" style="width:34px;height:34px;border-radius:50%;border:1.5px solid #E8C8D4;background:#FAF0F2;color:#7D3040;font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">−</button>
+            <span id="shop-qty" style="font-size:20px;font-weight:700;color:#2D1525;min-width:28px;text-align:center">1</span>
+            <button onclick="shopQty(1)" style="width:34px;height:34px;border-radius:50%;border:1.5px solid #E8C8D4;background:#FAF0F2;color:#7D3040;font-size:20px;font-weight:300;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
+          </div>
+        </div>
+        <div style="text-align:right;font-size:12px;color:#A07880;margin-bottom:14px">
+          Total: <strong id="shop-total" style="color:#7D3040;font-size:15px">$${(+p.precio).toFixed(2)}</strong>
+        </div>
+        <button onclick="submitShopOrder('${p.id}','${(p.nombre||'').replace(/'/g,"\\'")}',${+p.precio},${+p.costo})"
+          style="width:100%;padding:16px;background:linear-gradient(135deg,#7D3040,#C4607E);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;letter-spacing:.3px;box-shadow:0 4px 16px rgba(125,48,64,.3)">
+          🛍️ Enviar pedido
+        </button>
+      </div>`
+      :`<div style="background:#FFF0F0;border-radius:12px;padding:16px;text-align:center;color:#c00;font-size:14px;margin-bottom:16px">Este producto no está disponible por el momento.</div>`}
+      <div id="shop-msg" style="margin-bottom:16px"></div>
+    </div>`;
+  _shopQty=1;_shopPrecio=+p.precio;
 }
 let _shopQty=1;
+let _shopPrecio=0;
 function shopQty(d){
   _shopQty=Math.max(1,_shopQty+d);
   const el=document.getElementById('shop-qty');
   if(el)el.textContent=_shopQty;
+  const tot=document.getElementById('shop-total');
+  if(tot)tot.textContent='$'+(_shopPrecio*_shopQty).toFixed(2);
 }
 async function submitShopOrder(prodId,nombre,precio,costo){
-  const cliNombre=document.getElementById('shop-nombre').value.trim();
-  const cliTel=document.getElementById('shop-tel').value.trim();
-  if(!cliNombre||!cliTel){document.getElementById('shop-msg').innerHTML='<span style="color:#c00">Por favor ingresa tu nombre y teléfono.</span>';return;}
+  const cliNombre=(document.getElementById('shop-nombre')?.value||'').trim();
+  const cliTel=(document.getElementById('shop-tel')?.value||'').trim();
+  const notas=(document.getElementById('shop-notas')?.value||'').trim();
   const msg=document.getElementById('shop-msg');
-  msg.innerHTML='<span style="color:#7D3040">Enviando pedido...</span>';
+  if(!cliNombre||!cliTel){
+    msg.innerHTML='<div style="background:#FFF0F0;border:1.5px solid #f5c6cb;border-radius:10px;padding:12px;color:#c00;font-size:13px">⚠️ Por favor ingresa tu nombre y teléfono.</div>';
+    return;
+  }
+  _shopPrecio=precio;
+  const btn=document.querySelector('button[onclick*="submitShopOrder"]');
+  if(btn){btn.disabled=true;btn.textContent='Enviando...';}
   const sale={
     id:Date.now()+''+Math.random().toString(36).slice(2),
     fecha:new Date().toISOString(),
@@ -4669,13 +4736,30 @@ async function submitShopOrder(prodId,nombre,precio,costo){
     total_cost:costo*_shopQty,
     client_name:cliNombre,client_tel:cliTel,client_id:'',
     pay_method:'Pendiente',pay_status:'pendiente_cliente',
+    notas:notas||null,
     items:JSON.stringify([{prodId,name:nombre,qty:_shopQty,price:precio,cost:costo,sub:precio*_shopQty}])
   };
   try{
-    await fetch(`${_SB_URL}/rest/v1/sales`,{method:'POST',headers:{'apikey':_SB_KEY,'Authorization':'Bearer '+_SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(sale)});
-    msg.innerHTML='<div style="background:#E8F8EF;border-radius:10px;padding:14px;color:#2D8A55;font-weight:600">✅ ¡Pedido enviado! Te contactaremos pronto por WhatsApp.</div>';
-    document.querySelector('button[onclick*="submitShopOrder"]').style.display='none';
-  }catch(e){msg.innerHTML='<span style="color:#c00">Error al enviar. Intenta de nuevo.</span>';}
+    const res=await fetch(`${_SB_URL}/rest/v1/sales`,{method:'POST',headers:{'apikey':_SB_KEY,'Authorization':'Bearer '+_SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(sale)});
+    if(!res.ok)throw new Error(res.status);
+    const sc=document.getElementById('shop-content');
+    sc.innerHTML=`
+      <div style="padding:40px 24px;text-align:center">
+        <div style="font-size:64px;margin-bottom:16px">🌸</div>
+        <div style="font-family:'Playfair Display',serif;font-size:22px;color:#2D1525;margin-bottom:8px">¡Pedido enviado!</div>
+        <div style="font-size:14px;color:#7D3040;margin-bottom:24px">Gracias <strong>${cliNombre}</strong>, nos pondremos en contacto contigo por WhatsApp pronto.</div>
+        <div style="background:#F5E8EE;border-radius:14px;padding:16px;text-align:left;margin-bottom:20px">
+          <div style="font-size:12px;color:#A07880;margin-bottom:4px">Resumen del pedido</div>
+          <div style="font-weight:700;color:#2D1525">${nombre}</div>
+          <div style="font-size:13px;color:#7D3040">Cantidad: ${_shopQty} &nbsp;·&nbsp; Total: <strong>$${(precio*_shopQty).toFixed(2)}</strong></div>
+          ${notas?`<div style="font-size:12px;color:#A07880;margin-top:6px">Nota: ${notas}</div>`:''}
+        </div>
+        <div style="font-size:12px;color:#A07880">BlissWave Collection te contactará en breve 💛</div>
+      </div>`;
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='🛍️ Enviar pedido';}
+    msg.innerHTML='<div style="background:#FFF0F0;border-radius:10px;padding:12px;color:#c00;font-size:13px;margin-top:8px">❌ Error al enviar. Intenta de nuevo.</div>';
+  }
 }
 function getShopLink(prodId){return `${location.origin}${location.pathname}?buy=${prodId}`;}
 function shareProduct(prodId,nombre,precio){
