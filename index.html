@@ -645,6 +645,14 @@ setTimeout(function(){
 <div class="page" id="page-ven">
 <div class="page-scroll">
   <div class="page-header"><div class="page-title">Historial de Ventas</div><button class="btn btn-sm" style="background:var(--amber);color:#fff" onclick="sendWAMasivo()">📲 WA Masivo pendientes</button></div>
+  <!-- Pedidos de clientes online -->
+  <div id="pedidos-cli-wrap" style="background:#F0F8FF;border:1.5px solid #7D3040;border-radius:var(--r);padding:14px 16px;margin-bottom:14px;display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+      <div><span style="font-size:13px;font-weight:700;color:#7D3040">🛍️ Pedidos de clientes</span> <span id="pcli-count" style="font-size:12px;color:#7D3040"></span></div>
+      <button onclick="filtVenPago('pendiente_cliente')" style="font-size:11px;background:#7D3040;color:#fff;border:none;border-radius:8px;padding:4px 10px;cursor:pointer">Ver todos</button>
+    </div>
+    <div id="pcli-list" style="max-height:280px;overflow-y:auto"></div>
+  </div>
   <!-- Por cobrar -->
   <div id="porcobrar-wrap" style="background:#FFF8E6;border:1.5px solid var(--amber);border-radius:var(--r);padding:14px 16px;margin-bottom:14px;display:none">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
@@ -3832,6 +3840,30 @@ function toggleInvCatVal(){
 // ============================================================
 // ===== FEATURE 6: PANTALLA POR COBRAR =======================
 // ============================================================
+function renderPedidosClientes(){
+  const pedidos=db.sales.filter(v=>v.payStatus==='pendiente_cliente');
+  const wrap=document.getElementById('pedidos-cli-wrap');
+  if(!wrap)return;
+  if(!pedidos.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  document.getElementById('pcli-count').textContent=`· ${pedidos.length} pedido${pedidos.length>1?'s':''}`;
+  document.getElementById('pcli-list').innerHTML=pedidos
+    .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha))
+    .map(v=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(125,48,64,.12)">
+        <div>
+          <strong style="font-size:13px;color:#2D1525">${v.clientName||'Cliente'}</strong>
+          ${v.clientTel?`<span style="font-size:11px;color:#7D3040;margin-left:6px">📱 ${v.clientTel}</span>`:''}
+          <span style="font-size:11px;color:#A07880;margin-left:6px">${dfmt(v.fecha)}</span>
+          ${v.items&&v.items.length?`<div style="font-size:11px;color:#A07880">${v.items.map(i=>i.name+' x'+i.qty).join(', ').substring(0,60)}</div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;flex-shrink:0">
+          <strong style="font-family:'Playfair Display',serif;color:#7D3040">${fmt(v.total)}</strong>
+          <button onclick="aprobarPedidoCliente('${v.id}')" style="background:var(--green);color:#fff;border:none;border-radius:7px;padding:4px 9px;font-size:11px;font-weight:600;cursor:pointer">✅ Aprobar</button>
+          ${v.clientTel?`<a href="https://wa.me/${(v.clientTel||'').replace(/\D/g,'')}" target="_blank" style="font-size:16px;text-decoration:none" title="WhatsApp">💬</a>`:''}
+        </div>
+      </div>`).join('');
+}
 function renderPorCobrar(){
   const pendientes=db.sales.filter(v=>v.payStatus==='Pendiente'||v.payStatus==='Dev. Parcial');
   const wrap=document.getElementById('porcobrar-wrap');
@@ -3916,6 +3948,7 @@ const _origRenderVen4=renderVen;
 renderVen=function(lista){
   _origRenderVen4(lista);
   renderPorCobrar();
+  renderPedidosClientes();
   updatePendingBadge();
   if(typeof updatePendientesBadge==='function')updatePendientesBadge();
 };
