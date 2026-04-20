@@ -5460,6 +5460,64 @@ confirmDevolucion = function(saleId){
     renderCli();
   }
 };
+
+// ============================================================
+// ===== POLLING: PEDIDOS NUEVOS DE CLIENTES ==================
+// ============================================================
+let _knownPedidoIds=null;
+async function _pollPedidosClientes(){
+  if(window._SHOP_BUY_ID)return; // no correr en modo tienda pública
+  try{
+    const rows=await _sbPublic('sales','pay_status=eq.pendiente_cliente&select=id,client_name,client_tel,total,fecha&order=fecha.desc');
+    if(!Array.isArray(rows))return;
+    // Primera carga: solo registrar IDs conocidos sin notificar
+    if(_knownPedidoIds===null){
+      _knownPedidoIds=new Set(rows.map(r=>r.id));
+      // Sincronizar con db.sales si hay pedidos que no tenemos
+      rows.forEach(r=>{
+        if(!db.sales.find(s=>s.id===r.id)){
+          db.sales.unshift(_ms({...r,subtotal:r.total,discount:0,total_cost:0,client_id:'',pay_method:'Pendiente',pay_status:'pendiente_cliente',items:[]}));
+        }
+      });
+      updatePendientesBadge();
+      return;
+    }
+    // Detectar nuevos
+    const nuevos=rows.filter(r=>!_knownPedidoIds.has(r.id));
+    nuevos.forEach(r=>{
+      _knownPedidoIds.add(r.id);
+      // Agregar a db.sales
+      if(!db.sales.find(s=>s.id===r.id)){
+        db.sales.unshift(_ms({...r,subtotal:r.total,discount:0,total_cost:0,client_id:'',pay_method:'Pendiente',pay_status:'pendiente_cliente',items:[]}));
+      }
+      // Notificación visual y sonido
+      toast(`🛍️ Nuevo pedido de ${r.client_name||'cliente'} · ${fmt(r.total)}`);
+      // Notificación del navegador si está permitida
+      if(Notification.permission==='granted'){
+        new Notification('🛍️ Nuevo pedido — BlissWave',{body:`${r.client_name||'Cliente'} · ${fmt(r.total)}`,icon:''});
+      }
+    });
+    if(nuevos.length>0){
+      renderVen();
+      updatePendientesBadge();
+    }
+  }catch(e){}
+}
+function startPedidosPolling(){
+  if(window._SHOP_BUY_ID)return;
+  _pollPedidosClientes();
+  setInterval(_pollPedidosClientes,30000); // cada 30 segundos
+  // Pedir permiso para notificaciones del navegador
+  if('Notification' in window && Notification.permission==='default'){
+    Notification.requestPermission();
+  }
+}
+// Arrancar polling cuando initApp termine
+const _origInitAppShop=initApp;
+initApp=function(){
+  _origInitAppShop();
+  setTimeout(startPedidosPolling,2000);
+};
 </script>
 </body>
 </html>
