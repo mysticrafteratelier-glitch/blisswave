@@ -2692,7 +2692,7 @@ function setupPWA(){
   const manifest={name:'BlissWave Collection',short_name:'BlissWave',display:'standalone',background_color:'#2D1525',theme_color:'#2D1525',start_url:'./',icons:[{src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'}]};
   const mb=new Blob([JSON.stringify(manifest)],{type:'application/json'});
   document.getElementById('pwa-manifest').href=URL.createObjectURL(mb);
-  const sw=`const C='bwc-v1';self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['./'])).then(()=>self.skipWaiting()));});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>r)));});`;
+  const sw=`const C='bwc-v5';self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['./'])).then(()=>self.skipWaiting()));});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>r)));});`;
   const swb=new Blob([sw],{type:'application/javascript'});
   if('serviceWorker' in navigator)navigator.serviceWorker.register(URL.createObjectURL(swb)).catch(()=>{});
   const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
