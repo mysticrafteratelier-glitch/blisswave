@@ -4660,16 +4660,34 @@ function updatePendientesBadge(){
   if(n>0){b.textContent=n;b.style.display='inline';}
   else b.style.display='none';
 }
+function _syncShopClient(nombre,tel){
+  if(!nombre||!tel)return null;
+  const telClean=tel.replace(/\D/g,'');
+  let cli=db.clients.find(c=>(c.tel||'').replace(/\D/g,'')===telClean);
+  if(!cli){
+    cli={id:'cli-'+Date.now()+Math.random().toString(36).slice(2),nombre,tel,email:'',notas:'Pedido tienda online',totalCompras:0,ultimaCompra:null,puntos:0};
+    db.clients.push(cli);
+    sbSaveCli(cli);
+    renderCli();
+    toast('👤 Cliente agregado: '+nombre);
+  }
+  return cli;
+}
 function aprobarPedidoCliente(saleId){
   const v=db.sales.find(x=>x.id===saleId);if(!v)return;
   if(!confirm(`¿Aprobar pedido de ${v.clientName}?\nSe descontará del inventario.`))return;
+  // Sincronizar cliente
+  const cli=_syncShopClient(v.clientName,v.clientTel);
+  if(cli&&!v.clientId){v.clientId=cli.id;}
   v.payStatus='Pagado';v.payMethod='Cash';
   (v.items||[]).forEach(item=>{
     const p=db.prods.find(x=>x.id===item.prodId);
     if(p)p.stock=Math.max(0,p.stock-(item.qty||1));
   });
+  // Actualizar stats del cliente
+  if(cli){cli.totalCompras=(cli.totalCompras||0)+v.total;cli.ultimaCompra=new Date().toISOString();sbSaveCli(cli);}
   sbSaveSale(v);sbSaveProds(db.prods);
-  renderVen();renderInv();updatePendientesBadge();
+  renderVen();renderInv();renderCli();updatePendientesBadge();
   toast('✅ Pedido aprobado e inventario actualizado');
 }
 function compararProveedores(){
@@ -5490,7 +5508,9 @@ async function _pollPedidosClientes(){
       if(!db.sales.find(s=>s.id===r.id)){
         db.sales.unshift(_ms({...r,subtotal:r.total,discount:0,total_cost:0,client_id:'',pay_method:'Pendiente',pay_status:'pendiente_cliente',items:[]}));
       }
-      // Notificación visual y sonido
+      // Sincronizar cliente automáticamente al llegar el pedido
+      _syncShopClient(r.client_name,r.client_tel);
+      // Notificación visual
       toast(`🛍️ Nuevo pedido de ${r.client_name||'cliente'} · ${fmt(r.total)}`);
       // Notificación del navegador si está permitida
       if(Notification.permission==='granted'){
