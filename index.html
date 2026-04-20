@@ -372,6 +372,17 @@ body.dark .pr-item:hover{background:#3D2035!important;}
   </div>
 </div>
 
+<!-- ===== TIENDA PÚBLICA (link ?buy=ID) ===== -->
+<div id="shop-overlay" style="display:none;position:fixed;inset:0;background:#FEF5F5;z-index:2000;overflow-y:auto;font-family:'DM Sans',sans-serif">
+  <div style="max-width:440px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column">
+    <div style="background:linear-gradient(135deg,#2D1525,#7D3040);padding:18px 20px;display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <div style="font-family:'Playfair Display',serif;color:#FAE0E0;font-size:18px;flex:1">BlissWave Collection</div>
+      <div style="font-size:10px;letter-spacing:2px;color:rgba(250,224,224,.5);text-transform:uppercase">Joyería</div>
+    </div>
+    <div id="shop-content" style="flex:1;padding:20px 16px 40px"></div>
+  </div>
+</div>
+
 <!-- LOADING OVERLAY -->
 <div id="sb-loader" style="display:flex;position:fixed;inset:0;background:var(--dark);z-index:999;flex-direction:column;align-items:center;justify-content:center;gap:16px">
   <div style="font-family:'Playfair Display',serif;color:var(--rose-light);font-size:22px">BlissWave</div>
@@ -380,6 +391,19 @@ body.dark .pr-item:hover{background:#3D2035!important;}
   <button id="sb-skip-btn" onclick="(function(){document.getElementById('sb-loader').style.display='none';if(typeof load==='function')load();if(typeof initApp==='function')initApp();})()" style="display:none;margin-top:8px;padding:8px 20px;background:rgba(232,180,174,.15);border:1px solid rgba(232,180,174,.3);border-radius:20px;color:var(--rose-light);font-size:12px;cursor:pointer;font-family:'DM Sans',sans-serif">Entrar sin internet →</button>
 </div>
 <script>
+// Detección temprana de ?buy=ID — bypass PIN y loader
+(function(){
+  var p=new URLSearchParams(location.search);
+  var buyId=p.get('buy');
+  if(buyId){
+    window._SHOP_BUY_ID=buyId;
+    var loader=document.getElementById('sb-loader');
+    if(loader)loader.style.display='none';
+    var shop=document.getElementById('shop-overlay');
+    if(shop)shop.style.display='block';
+    document.getElementById('shop-content').innerHTML='<div style="text-align:center;padding:40px;color:#7D3040"><div style="font-size:32px;margin-bottom:12px">🌸</div><div>Cargando producto...</div></div>';
+  }
+})();
 // Mostrar botón "Entrar" a los 3s, forzar entrada a los 10s
 setTimeout(function(){
   var b=document.getElementById('sb-skip-btn');
@@ -437,7 +461,7 @@ setTimeout(function(){
   <button class="nav-tab active" onclick="goTo('pos')" id="tab-pos">🛒 Cobrar</button>
   <button class="nav-tab" onclick="goTo('inv')" id="tab-inv">📦 Inventario</button>
   <button class="nav-tab" onclick="goTo('ped')" id="tab-ped">🚚 Pedidos</button>
-  <button class="nav-tab" onclick="goTo('ven')" id="tab-ven">🧾 Ventas</button>
+  <button class="nav-tab" onclick="goTo('ven')" id="tab-ven">🧾 Ventas<span id="badge-pendientes" style="display:none;background:#C4607E;color:#fff;font-size:10px;font-weight:700;border-radius:10px;padding:1px 6px;margin-left:4px"></span></button>
   <button class="nav-tab" onclick="goTo('caja')" id="tab-caja">💰 Caja</button>
   <button class="nav-tab" onclick="goTo('cli')" id="tab-cli">👥 Clientes</button>
   <button class="nav-tab" onclick="goTo('dash')" id="tab-dash">📊 Dashboard</button>
@@ -554,6 +578,7 @@ setTimeout(function(){
       <button class="btn btn-outline" onclick="openStockBajoOrder()">⚡ Stock bajo</button>
       <button class="btn btn-outline" onclick="exportXLS('inv')">📥 Exportar</button>
       <label class="btn btn-outline" style="cursor:pointer">📤 Importar<input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importInvExcel(event)"></label>
+      <button class="btn btn-outline" onclick="openConteoFisico()">📋 Conteo físico</button>
       <button class="btn" onclick="resetProdForm();openModal('modal-prod')">+ Nuevo</button>
     </div>
   </div>
@@ -602,7 +627,10 @@ setTimeout(function(){
 <div class="page-scroll">
   <div class="page-header">
     <div class="page-title">Pedidos & Verificación</div>
-    <button class="btn" id="btn-new-ped">+ Nuevo Pedido</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-outline" onclick="compararProveedores()">📊 Comparar proveedores</button>
+      <button class="btn" id="btn-new-ped">+ Nuevo Pedido</button>
+    </div>
   </div>
   <div class="sbar">
     <select id="ped-filter" onchange="renderPed()" style="padding:8px 11px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;background:#fff;">
@@ -634,7 +662,7 @@ setTimeout(function(){
   <div class="sbar">
     <input type="text" placeholder="Buscar venta..." oninput="filtVen(this.value)" id="ven-q">
     <select onchange="filtVenPago(this.value)" id="ven-pago-sel" style="padding:8px 11px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;background:#fff;">
-      <option value="all">💳 Todos los métodos</option><option value="Cash">💵 Cash</option><option value="Zelle">💙 Zelle</option><option value="Card">💳 Card</option><option value="__pending__">⏳ Pendientes</option>
+      <option value="all">💳 Todos los métodos</option><option value="Cash">💵 Cash</option><option value="Zelle">💙 Zelle</option><option value="Card">💳 Card</option><option value="__pending__">⏳ Pendientes</option><option value="pendiente_cliente">🛍️ Pedidos clientes</option>
     </select>
     <select onchange="filtVenFecha(this.value)" id="ven-fecha-sel" style="padding:8px 11px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;background:#fff;">
       <option value="all">Todas</option><option value="hoy">Hoy</option><option value="semana">Semana</option><option value="mes">Mes</option><option value="rango">📅 Rango...</option>
@@ -655,7 +683,7 @@ setTimeout(function(){
 <!-- ===== CAJA ===== -->
 <div class="page" id="page-caja">
 <div class="page-scroll">
-  <div class="page-header"><div class="page-title">Control de Caja</div><div style="display:flex;gap:8px"><button class="btn btn-outline" onclick="exportXLS('caja')">📥 Exportar</button><button class="btn" onclick="openModal('modal-mov')">+ Movimiento</button></div></div>
+  <div class="page-header"><div class="page-title">Control de Caja</div><div style="display:flex;gap:8px"><button class="btn btn-outline" onclick="cierreDelDia()">📋 Cierre del día</button><button class="btn btn-outline" onclick="exportXLS('caja')">📥 Exportar</button><button class="btn" onclick="openModal('modal-mov')">+ Movimiento</button></div></div>
   <div class="sbar">
     <input type="text" id="caja-q" placeholder="Buscar movimiento..." oninput="filtCaja(this.value)" style="flex:1">
     <select id="caja-tipo-sel" onchange="filtCaja(document.getElementById('caja-q').value)" style="padding:8px 11px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;background:#fff;">
@@ -809,6 +837,33 @@ setTimeout(function(){
         </div>
       </div>
     </div>
+    <!-- Tipo de cambio -->
+    <div class="tbl-wrap" style="padding:20px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:14px">💱 Tipo de cambio USD</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="flex:1;min-width:140px">
+          <div style="font-size:11px;color:var(--text-light);margin-bottom:4px">1 USD =</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="number" id="cfg-tasa" min="1" step="0.01" placeholder="18.00"
+              style="flex:1;padding:8px 10px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:14px"
+              oninput="saveTasa(this.value)">
+            <select id="cfg-moneda" onchange="saveTasa()" style="padding:8px 10px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;background:#fff">
+              <option value="MXN">MXN 🇲🇽</option>
+              <option value="COP">COP 🇨🇴</option>
+              <option value="ARS">ARS 🇦🇷</option>
+              <option value="PEN">PEN 🇵🇪</option>
+              <option value="CLP">CLP 🇨🇱</option>
+              <option value="DOP">DOP 🇩🇴</option>
+              <option value="GTQ">GTQ 🇬🇹</option>
+              <option value="HNL">HNL 🇭🇳</option>
+              <option value="NIO">NIO 🇳🇮</option>
+            </select>
+          </div>
+        </div>
+        <div id="cfg-tasa-preview" style="font-size:12px;color:var(--text-light);align-self:flex-end;padding-bottom:8px"></div>
+      </div>
+      <p style="font-size:11px;color:var(--text-light);margin-top:8px">Se muestra el costo en moneda local en el inventario y al agregar productos.</p>
+    </div>
     <!-- Exportar -->
     <div class="tbl-wrap" style="padding:20px">
       <div style="font-size:13px;font-weight:600;margin-bottom:14px">📥 Exportar datos</div>
@@ -943,6 +998,7 @@ setTimeout(function(){
       <button class="btn btn-sm" onclick="onManualScan();document.getElementById('scan-manual').value=''">✓</button>
     </div>
     <div class="scan-feedback" id="scan-fb"></div>
+    <div id="scan-extra"></div>
   </div>
 </div>
 
@@ -974,7 +1030,7 @@ setTimeout(function(){
         <option value="">— Sin especificar —</option>
         <option value="Pulsera">Pulsera</option>
         <option value="Arete">Arete</option>
-        <option value="Set">Set (collar + arete)</option>
+        <option value="Set">Set</option>
         <option value="Tobillera">Tobillera</option>
         <option value="Collar">Collar</option>
         <option value="Anillo">Anillo</option>
@@ -1018,11 +1074,20 @@ setTimeout(function(){
     <button class="pc-apply" onclick="aplicarPrecio()">✓ Usar precio sugerido (× 2)</button>
   </div>
   <div class="price-calc" id="flete-calc" style="margin-top:8px">
-    <div class="pc-label">🚢 + Flete</div>
+    <div class="pc-label">🚢 + Flete por pieza</div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button type="button" onclick="setFletePreset(130,1125)" style="font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid rgba(232,180,174,.3);background:rgba(255,255,255,.07);color:rgba(232,180,174,.9);cursor:pointer">Xuping $0.12/pza</button>
+      <button type="button" onclick="setFletePreset(148,294)" style="font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid rgba(232,180,174,.3);background:rgba(255,255,255,.07);color:rgba(232,180,174,.9);cursor:pointer">CM $0.50/pza</button>
+    </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
       <div style="flex:1;min-width:100px">
-        <div style="font-size:10px;color:rgba(232,180,174,.6);margin-bottom:3px">% Flete</div>
-        <input id="flete-pct" type="number" value="30" min="0" step="1" oninput="calcFlete()"
+        <div style="font-size:10px;color:rgba(232,180,174,.6);margin-bottom:3px">Shipping total ($)</div>
+        <input id="flete-ship" type="number" value="148" min="0" step="1" oninput="calcFlete()"
+          style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(232,180,174,.3);border-radius:7px;color:#fff;padding:6px 9px;font-size:13px;font-family:'DM Sans',sans-serif">
+      </div>
+      <div style="flex:1;min-width:100px">
+        <div style="font-size:10px;color:rgba(232,180,174,.6);margin-bottom:3px">Piezas del pedido</div>
+        <input id="flete-piezas" type="number" value="294" min="1" step="1" oninput="calcFlete()"
           style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(232,180,174,.3);border-radius:7px;color:#fff;padding:6px 9px;font-size:13px;font-family:'DM Sans',sans-serif">
       </div>
       <div style="flex:1;min-width:100px">
@@ -1030,7 +1095,11 @@ setTimeout(function(){
         <input id="flete-margen" type="number" value="2" min="1" step="0.1" oninput="calcFlete()"
           style="width:100%;background:rgba(255,255,255,.1);border:1px solid rgba(232,180,174,.3);border-radius:7px;color:#fff;padding:6px 9px;font-size:13px;font-family:'DM Sans',sans-serif">
       </div>
-      <div class="pc-val" style="flex:1;min-width:80px"><small>Con flete</small><strong id="flete-result">—</strong></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      <div class="pc-val" style="flex:1;min-width:80px"><small>Flete/pieza</small><strong id="flete-xpieza">—</strong></div>
+      <div class="pc-val" style="flex:1;min-width:80px"><small>Costo real</small><strong id="flete-costo-real">—</strong></div>
+      <div class="pc-val" style="flex:1;min-width:80px"><small>Precio venta</small><strong id="flete-result">—</strong></div>
     </div>
     <button class="pc-apply" onclick="aplicarFlete()">🚢 Aplicar precio con flete</button>
   </div>
@@ -1084,6 +1153,24 @@ setTimeout(function(){
   </div>
   <div id="verif-content"></div>
   <div class="ma" id="verif-ma"></div>
+</div>
+</div>
+
+<!-- Conteo Físico Resumen -->
+<div class="modal-overlay" id="modal-conteo">
+<div class="modal modal-lg">
+  <h3>📋 Resumen de Conteo Físico</h3>
+  <div id="conteo-sum-stats" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>
+  <div style="overflow-x:auto">
+  <table class="vt-table">
+    <thead><tr><th>SKU</th><th>Producto</th><th style="text-align:center">Stock actual</th><th style="text-align:center">Conteo físico</th><th style="text-align:center">Diferencia</th></tr></thead>
+    <tbody id="conteo-sum-body"></tbody>
+  </table></div>
+  <p style="font-size:12px;color:var(--text-light);margin-top:10px">Al aplicar, el stock se actualiza con los valores del conteo físico.</p>
+  <div class="ma">
+    <button class="btn btn-outline" onclick="closeModal('modal-conteo')">Cancelar</button>
+    <button class="btn btn-success" onclick="applyConteo()">✅ Aplicar conteo</button>
+  </div>
 </div>
 </div>
 
@@ -1623,10 +1710,10 @@ function renderInv(lista){
     <td><div style="display:flex;align-items:center;gap:8px">${p.foto?`<img src="${p.foto}" class="prod-thumb" alt="">`:'<div style="width:36px;height:36px;border-radius:8px;background:var(--dark);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">💛</div>'}<div><strong>${p.nombre}</strong><br><small style="color:var(--text-light)">${p.proveedor||''}</small></div></div></td>
     <td><span class="badge b-rose">${p.categoria}</span></td>
     <td><span class="badge ${p.stock===0?'b-red':p.stock<=2?'b-amber':'b-green'}">${p.stock}</span></td>
-    <td>${fmt(p.costo)}</td>
+    <td>${fmt(p.costo)}${fmtLocal(p.costo)?`<br><small style="color:var(--text-light);font-size:10px">${fmtLocal(p.costo)}</small>`:''}</td>
     <td><strong>${fmt(p.precio)}</strong><br><small style="color:var(--green);font-size:10px">+${fmt(p.precio-p.costo)}</small></td>
     <td><span class="badge b-gray">${p.proveedor||'—'}</span></td>
-    <td><div style="display:flex;gap:4px"><button class="btn btn-sm btn-outline" onclick="editProd('${p.id}')">✏️</button><button class="btn btn-sm btn-danger" onclick="delProd('${p.id}')">🗑️</button></div></td>
+    <td><div style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn btn-sm btn-outline" onclick="editProd('${p.id}')">✏️</button><button class="btn btn-sm btn-danger" onclick="delProd('${p.id}')">🗑️</button><button class="btn btn-sm btn-outline" onclick="shareProduct('${p.id}','${(p.nombre||'').replace(/'/g,"\\'").replace(/"/g,'')}',${p.precio})" title="Compartir por WhatsApp">📤</button></div></td>
   </tr>`).join('');
 }
 function filtInv(q){const l=q.toLowerCase();renderInv(db.prods.filter(p=>(p.nombre||'').toLowerCase().includes(l)||(p.sku||'').toLowerCase().includes(l)));}
@@ -1692,12 +1779,11 @@ function renderVen(lista){
         ${payDateVal?`<br><small style="color:var(--green);font-size:10px">${dfmt(pd)}</small>`:'<br><small style="color:var(--text-light);font-size:10px">Sin fecha</small>'}
       </td>
       <td>
-        ${isPaid
-          ? `<span class="badge b-green" style="cursor:pointer" onclick="updateSaleField('${v.id}','payStatus','Pendiente')" title="Clic para marcar Pendiente">✅ Pagado</span>`
-          : `<button onclick="markAsPaid('${v.id}')"
-              style="background:linear-gradient(135deg,#4CAF7A,#3a9e62);color:#fff;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">
-              ⏳ Marcar Pagado
-            </button>`
+        ${v.payStatus==='pendiente_cliente'
+          ? `<div><span class="badge b-rose" style="margin-bottom:4px;display:block">🛍️ Pedido cliente</span><button onclick="aprobarPedidoCliente('${v.id}')" style="background:linear-gradient(135deg,#4CAF7A,#3a9e62);color:#fff;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">✅ Aprobar</button></div>`
+          : isPaid
+            ? `<span class="badge b-green" style="cursor:pointer" onclick="updateSaleField('${v.id}','payStatus','Pendiente')" title="Clic para marcar Pendiente">✅ Pagado</span>`
+            : `<button onclick="markAsPaid('${v.id}')" style="background:linear-gradient(135deg,#4CAF7A,#3a9e62);color:#fff;border:none;border-radius:8px;padding:5px 11px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">⏳ Marcar Pagado</button>`
         }
       </td>
       <td style="display:flex;gap:4px;align-items:center">
@@ -1779,6 +1865,50 @@ function saveMov(){
   const _m={id:Date.now()+'',fecha:now(),tipo,monto:m,desc:d||tipo};
   db.movements.unshift(_m);
   sbSaveMov(_m);closeModal('modal-mov');document.getElementById('m-monto').value='';document.getElementById('m-desc').value='';renderCaja();
+}
+function cierreDelDia(){
+  const hoy=new Date();
+  const hs=hoy.toISOString().slice(0,10);
+  const ventasHoy=db.sales.filter(v=>v.fecha&&v.fecha.slice(0,10)===hs);
+  const movsHoy=db.movements.filter(m=>m.fecha&&m.fecha.slice(0,10)===hs);
+  const totalVentas=ventasHoy.reduce((s,v)=>s+v.total,0);
+  const porMetodo={Cash:0,Zelle:0,Card:0,Otro:0};
+  ventasHoy.forEach(v=>{const m=v.payMethod||'Otro';porMetodo[m]=(porMetodo[m]||0)+v.total;});
+  const ingresos=movsHoy.filter(m=>m.tipo==='ingreso').reduce((s,m)=>s+m.monto,0);
+  const egresos=movsHoy.filter(m=>m.tipo==='egreso').reduce((s,m)=>s+m.monto,0);
+  const ganancia=ventasHoy.reduce((s,v)=>s+(v.total-(v.totalCost||0)),0);
+  const fecha=hoy.toLocaleDateString('es-MX',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Cierre ${hs}</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'DM Sans',Arial,sans-serif;padding:24px;max-width:420px;margin:0 auto;color:#2D1525}
+  h1{font-size:20px;margin-bottom:4px}h2{font-size:14px;color:#7D3040;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #F5E8EE;padding-bottom:4px}
+  .logo{color:#7D3040;font-size:22px;font-weight:700;margin-bottom:2px}.sub{color:#999;font-size:12px;margin-bottom:16px}
+  .row{display:flex;justify-content:space-between;padding:5px 0;font-size:13px;border-bottom:1px dashed #F5E8EE}
+  .row.total{font-weight:700;font-size:15px;border-bottom:2px solid #C4847A;border-top:2px solid #C4847A;padding:8px 0;margin:4px 0}
+  .row.green{color:#2D8A55}.row.red{color:#C4607E}
+  .badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-right:4px}
+  .venta{padding:6px 0;border-bottom:1px dashed #F5E8EE;font-size:12px}
+  @media print{button{display:none}}</style></head><body>
+  <div class="logo">BlissWave Collection</div>
+  <div class="sub">Cierre de caja — ${fecha}</div>
+  <h2>Ventas del día</h2>
+  <div class="row"><span>Número de ventas</span><span>${ventasHoy.length}</span></div>
+  <div class="row"><span>💵 Cash</span><span>$${porMetodo.Cash.toFixed(2)}</span></div>
+  <div class="row"><span>💙 Zelle</span><span>$${porMetodo.Zelle.toFixed(2)}</span></div>
+  <div class="row"><span>💳 Card</span><span>$${porMetodo.Card.toFixed(2)}</span></div>
+  ${porMetodo.Otro>0?`<div class="row"><span>Otro</span><span>$${porMetodo.Otro.toFixed(2)}</span></div>`:''}
+  <div class="row total"><span>Total ventas</span><span>$${totalVentas.toFixed(2)}</span></div>
+  <h2>Movimientos de caja</h2>
+  <div class="row green"><span>📈 Ingresos</span><span>+$${ingresos.toFixed(2)}</span></div>
+  <div class="row red"><span>📉 Egresos</span><span>-$${egresos.toFixed(2)}</span></div>
+  <div class="row total"><span>Balance del día</span><span>$${(ingresos-egresos).toFixed(2)}</span></div>
+  <h2>Ganancia neta</h2>
+  <div class="row green total"><span>💰 Ganancia del día</span><span>$${ganancia.toFixed(2)}</span></div>
+  <h2>Detalle de ventas</h2>
+  ${ventasHoy.map(v=>`<div class="venta"><strong>${v.clientName||'Cliente general'}</strong> · ${v.payMethod||'Cash'}<br>${(v.items||[]).map(i=>i.name+' x'+i.qty).join(', ')}<br><strong>$${v.total.toFixed(2)}</strong></div>`).join('')||'<p style="color:#999;font-size:13px">Sin ventas hoy</p>'}
+  <br><button onclick="window.print()" style="width:100%;padding:12px;background:#7D3040;color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;margin-top:8px">🖨️ Imprimir cierre</button>
+  </body></html>`;
+  const w=window.open('','_blank','width=480,height=700');
+  w.document.write(html);w.document.close();
 }
 function renderCaja(){
   const mes=new Date().getMonth(),yr=new Date().getFullYear();
@@ -1874,11 +2004,21 @@ function renderPed(){
 function togglePed(id){document.getElementById('pb-'+id).classList.toggle('open');}
 function setPedStatus(id,s){const o=db.orders.find(p=>p.id===id);o.estado=s;sbSaveOrder(o);renderPed();}
 function delPed(id){if(!confirm('¿Eliminar?'))return;db.orders=db.orders.filter(p=>p.id!==id);sbDelOrder(id);renderPed();}
+const _tipoACat={Pulsera:'B',Arete:'E',Dije:'P',Collar:'N',Anillo:'R',Tobillera:'B',Cadena:'N',Set:'Otro',Prendedor:'Otro'};
 function addToInventory(item,prov,cant){
   const c=cant||item.cantPedida||1;
+  const cat=item.tipo?(_tipoACat[item.tipo]||'Otro'):'Otro';
   const prod=db.prods.find(pr=>(pr.sku&&item.sku&&pr.sku===item.sku)||(pr.nombre.toLowerCase()===item.nombre.toLowerCase()));
-  if(prod){prod.stock+=c;if(item.sku&&!prod.sku)prod.sku=item.sku;}
-  else db.prods.push({id:Date.now()+''+Math.random(),sku:item.sku||'',nombre:item.nombre,categoria:'Otro',stock:c,proveedor:prov||'',costo:item.costo||0,precio:((item.costo||0)*2)});
+  if(prod){
+    prod.stock+=c;
+    if(item.sku&&!prod.sku)prod.sku=item.sku;
+    if(item.foto&&!prod.foto)prod.foto=item.foto;
+    if(item.tipo){setProdMeta(prod.id,{tipo:item.tipo});if(prod.categoria==='Otro')prod.categoria=cat;}
+  } else {
+    const np={id:Date.now()+''+Math.random(),sku:item.sku||'',nombre:item.nombre,categoria:cat,stock:c,proveedor:prov||'',costo:item.costo||0,precio:((item.costo||0)*2),foto:item.foto||null};
+    db.prods.push(np);
+    if(item.tipo)setProdMeta(np.id,{tipo:item.tipo});
+  }
 }
 function recvAll(id){
   if(!confirm('¿Recibir todo e ingresar al inventario?'))return;
@@ -1893,6 +2033,7 @@ function recvAll(id){
 // =================== VERIFICACIÓN IA ========================
 // ============================================================
 let _vOrderId=null,_vItems=[];
+let _conteoData={};
 function openVerif(id){
   _vOrderId=id;const p=db.orders.find(x=>x.id===id);
   _vItems=p.items.map(i=>({...i,cantFactura:null,precioFactura:null,enFactura:false,esExtra:false}));
@@ -1910,12 +2051,17 @@ function renderVerifModal(p){
     </div>
     <input type="file" id="fac-input" accept=".pdf,.xlsx,.xls,image/*" style="display:none" onchange="processInvoice(event)">
     <div id="ai-msg"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin:11px 0 6px">
-      <strong style="font-size:13px">✔ Marca lo que llegó físicamente</strong>
+    <div style="display:flex;gap:8px;margin:10px 0 4px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-outline" onclick="openScan('verif')">📷 Escanear físicamente</button>
+      <span style="font-size:11px;color:var(--text-light);align-self:center">Escanea el código de barras de cada pieza que llegó</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:8px 0 6px">
+      <strong style="font-size:13px">✔ O marca manualmente lo que llegó</strong>
       <button class="btn btn-sm btn-outline" onclick="markAll()">Marcar todos</button>
     </div>
     <div style="overflow-x:auto">
-    <table class="vt-table"><thead><tr><th>SKU</th><th>Artículo</th><th>Pedido</th><th>Factura</th><th>Precio USD</th><th>¿Llegó?</th><th>Estado</th></tr></thead>
+    <input type="file" id="verif-foto-inp" accept="image/*" capture="environment" style="display:none" onchange="verifFotoLoad(event)">
+    <table class="vt-table"><thead><tr><th>Foto</th><th>SKU</th><th>Artículo</th><th>Tipo</th><th>Pedido</th><th>Factura</th><th>Precio USD</th><th>¿Llegó?</th><th>Estado</th></tr></thead>
     <tbody id="v-tbody">${renderVRows()}</tbody></table></div>
     <div id="v-sum"></div>`;
   ma.innerHTML=`<button class="btn btn-outline" onclick="closeModal('modal-verif')">Cancelar</button><button class="btn btn-success" onclick="confirmRecv()">✅ Confirmar recepción</button>`;
@@ -1928,8 +2074,26 @@ function renderVerifModal(p){
 }
 function renderVRows(){
   return _vItems.map((item,i)=>`<tr class="${item.verificado?'row-ok':item.esExtra?'row-extra':''}" id="vr-${i}">
+    <td style="text-align:center">
+      ${item.foto
+        ?`<img src="${item.foto}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer" onclick="verifFotoOpen(${i})">`
+        :`<button onclick="verifFotoOpen(${i})" style="background:rgba(255,255,255,.05);border:1.5px dashed rgba(232,180,174,.3);border-radius:8px;width:44px;height:44px;cursor:pointer;font-size:18px;color:rgba(232,180,174,.5)">📷</button>`}
+    </td>
     <td>${item.sku?`<span class="sku">${item.sku}</span>`:'-'}</td>
     <td>${item.nombre}</td>
+    <td><select onchange="_vItems[${i}].tipo=this.value" style="font-size:11px;padding:3px 5px;border:1px solid #F5E8EE;border-radius:7px;background:#fff;max-width:110px">
+      <option value="">—</option>
+      <option value="Pulsera" ${item.tipo==='Pulsera'?'selected':''}>Pulsera</option>
+      <option value="Arete" ${item.tipo==='Arete'?'selected':''}>Arete</option>
+      <option value="Set" ${item.tipo==='Set'?'selected':''}>Set</option>
+      <option value="Tobillera" ${item.tipo==='Tobillera'?'selected':''}>Tobillera</option>
+      <option value="Collar" ${item.tipo==='Collar'?'selected':''}>Collar</option>
+      <option value="Anillo" ${item.tipo==='Anillo'?'selected':''}>Anillo</option>
+      <option value="Dije" ${item.tipo==='Dije'?'selected':''}>Dije / Charm</option>
+      <option value="Cadena" ${item.tipo==='Cadena'?'selected':''}>Cadena</option>
+      <option value="Prendedor" ${item.tipo==='Prendedor'?'selected':''}>Prendedor</option>
+      <option value="Otro" ${item.tipo==='Otro'?'selected':''}>Otro</option>
+    </select></td>
     <td>${item.cantPedida||'—'}</td>
     <td id="vrf-${i}">${item.cantFactura!==null?renderFacBadge(item):'<span class="badge b-gray">—</span>'}</td>
     <td id="vrp-${i}">${item.precioFactura?`<strong>${fmt(item.precioFactura)}</strong>`:'—'}</td>
@@ -1975,7 +2139,7 @@ async function processInvoiceFile(file){
     const pedList=p.items.map(i=>`- SKU:${i.sku||'?'} | ${i.nombre} | ${i.cantPedida} pzs`).join('\n');
     let prompt='';
     if(p.proveedor==='Xuping'){
-      prompt=`Eres experto en listas de Xuping Jewelry. Artículos del pedido:\n${pedList}\n\nFormato Xuping: columna "Ttem"/"Item"=SKU(X00XXXXXXX), "QUANTITY(PCS)"=piezas, "DISCOUNTED PRICE(USD$)"=precio USD real, "ORIGINAL PRICE(RMB)"=precio RMB.\nExtrae TODOS los artículos con precio USD real de la factura.\nResponde SOLO JSON sin texto extra:\n{"proveedor":"Xuping","numeroOrden":"KOTxxxxxx","items":[{"sku":"X001237074","cantidad":6,"precioUSD":1.55}],"totalUSD":0}`;
+      prompt=`Eres experto en listas de Xuping Jewelry. Artículos del pedido:\n${pedList}\n\nFormato Xuping: columna "Ttem"/"Item"=SKU(X00XXXXXXX), "QUANTITY(PCS)"=piezas, "DISCOUNTED PRICE(USD$)"=precio USD real, "ORIGINAL PRICE(RMB)"=precio RMB. Columna "PRODUCT NAME" tiene el tipo de joya como letra: B=Pulsera, E=Arete, P=Dije, N=Collar, R=Anillo, A=Tobillera, C=Cadena, SET=Set, BW=Otro.\nExtrae TODOS los artículos con precio USD real de la factura.\nResponde SOLO JSON sin texto extra:\n{"proveedor":"Xuping","numeroOrden":"KOTxxxxxx","items":[{"sku":"X001237074","tipo":"Pulsera","cantidad":6,"precioUSD":1.55}],"totalUSD":0}`;
     } else if(p.proveedor==='CM'){
       prompt=`Eres experto en Proforma Invoice de CM Guangzhou Chuanglida. Artículos:\n${pedList}\n\nFormato CM: No=fila, NUMBER=código, QUANTITY=piezas, PRICE(pairs)=precio USD real.\nExtrae TODOS con precio USD real.\nResponde SOLO JSON:\n{"proveedor":"CM","items":[{"no":2,"sku":"código o vacío","cantidad":12,"precioUSD":2.70}],"totalUSD":0}`;
     } else {
@@ -1996,8 +2160,8 @@ async function processInvoiceFile(file){
       if(idx<0&&fi.sku)idx=_vItems.findIndex(iv=>iv.sku&&(iv.sku.includes(fi.sku)||fi.sku.includes(iv.sku)));
       if(idx<0)idx=_vItems.findIndex(iv=>iv.nombre&&fi.nombre&&(iv.nombre.toLowerCase().includes((fi.nombre||'').toLowerCase())||(fi.nombre||'').toLowerCase().includes(iv.nombre.toLowerCase())));
       if(idx<0&&fi.no!==undefined)idx=fi.no-1<_vItems.length?fi.no-1:-1;
-      if(idx>=0){_vItems[idx].cantFactura=fi.cantidad;_vItems[idx].enFactura=true;_vItems[idx].precioFactura=fi.precioUSD;if(fi.sku&&!_vItems[idx].sku)_vItems[idx].sku=fi.sku.toUpperCase();if(fi.precioUSD&&fi.precioUSD>0)_vItems[idx].costo=fi.precioUSD;}
-      else _vItems.push({sku:(fi.sku||'').toUpperCase(),nombre:fi.nombre||`Fila ${fi.no||'?'}`,cantPedida:0,cantFactura:fi.cantidad,precioFactura:fi.precioUSD||0,enFactura:true,verificado:false,esExtra:true,costo:fi.precioUSD||0});
+      if(idx>=0){_vItems[idx].cantFactura=fi.cantidad;_vItems[idx].enFactura=true;_vItems[idx].precioFactura=fi.precioUSD;if(fi.sku&&!_vItems[idx].sku)_vItems[idx].sku=fi.sku.toUpperCase();if(fi.precioUSD&&fi.precioUSD>0)_vItems[idx].costo=fi.precioUSD;if(fi.tipo&&!_vItems[idx].tipo)_vItems[idx].tipo=fi.tipo;}
+      else _vItems.push({sku:(fi.sku||'').toUpperCase(),nombre:fi.nombre||`Fila ${fi.no||'?'}`,cantPedida:0,cantFactura:fi.cantidad,precioFactura:fi.precioUSD||0,enFactura:true,verificado:false,esExtra:true,costo:fi.precioUSD||0,tipo:fi.tipo||''});
     });
     document.getElementById('v-tbody').innerHTML=renderVRows();
     const extra=_vItems.filter(x=>x.esExtra).length;
@@ -2018,8 +2182,90 @@ function confirmRecv(){
   sbSaveOrder(p);sbSaveProds(db.prods);closeModal('modal-verif');renderPed();renderInv();
   toast(`✅ ${recibidos.length}/${_vItems.length} artículos ingresados al inventario`);
 }
+let _verifFotoIdx=null;
+function verifFotoOpen(i){
+  _verifFotoIdx=i;
+  document.getElementById('verif-foto-inp').value='';
+  document.getElementById('verif-foto-inp').click();
+}
+function verifFotoLoad(e){
+  const file=e.target.files[0];if(!file||_verifFotoIdx===null)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    _vItems[_verifFotoIdx].foto=ev.target.result;
+    const row=document.getElementById('vr-'+_verifFotoIdx);
+    if(row){row.cells[0].innerHTML=`<img src="${ev.target.result}" style="width:44px;height:44px;object-fit:cover;border-radius:8px;cursor:pointer" onclick="verifFotoOpen(${_verifFotoIdx})">`;}
+    toast('📷 Foto guardada');
+  };
+  reader.readAsDataURL(file);
+}
 function toB64(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);});}
 
+// ============================================================
+// =================== CONTEO FÍSICO ==========================
+// ============================================================
+function openConteoFisico(){
+  _conteoData={};
+  openScan('conteo');
+  document.getElementById('scan-extra').innerHTML=`
+    <div style="margin-top:10px;border-top:1px solid rgba(255,255,255,.1);padding-top:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="color:rgba(255,255,255,.5);font-size:11px;text-transform:uppercase;letter-spacing:.7px">Productos contados</span>
+        <button class="btn btn-sm" onclick="finalizarConteo()">Finalizar conteo →</button>
+      </div>
+      <div id="conteo-scan-list" style="max-height:160px;overflow-y:auto"></div>
+    </div>`;
+}
+function renderConteoScanTable(){
+  const el=document.getElementById('conteo-scan-list');if(!el)return;
+  const rows=Object.entries(_conteoData).map(([id,cnt])=>{
+    const p=db.prods.find(x=>x.id===id);if(!p)return '';
+    const diff=cnt-p.stock;
+    const dc=diff>0?'#a8f0c6':diff<0?'rgba(255,150,150,.9)':'rgba(255,255,255,.5)';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06);font-size:12px;color:#fff">
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.nombre}</span>
+      <span style="margin:0 8px;color:rgba(255,255,255,.4)">${p.stock}→</span>
+      <span style="font-weight:700">${cnt}</span>
+      <span style="margin-left:6px;color:${dc};min-width:28px;text-align:right">${diff>0?'+'+diff:diff===0?'✓':diff}</span>
+    </div>`;
+  }).join('');
+  el.innerHTML=rows||'<span style="color:rgba(255,255,255,.3);font-size:12px">Escanea tu primer producto...</span>';
+}
+function finalizarConteo(){
+  if(!Object.keys(_conteoData).length){toast('No has escaneado nada aún',true);return;}
+  closeScan();
+  const rows=Object.entries(_conteoData).map(([id,cnt])=>{
+    const p=db.prods.find(x=>x.id===id);if(!p)return '';
+    const diff=cnt-p.stock;
+    const dc=diff>0?'var(--green)':diff<0?'var(--rose)':'var(--text-light)';
+    return `<tr>
+      <td><span class="sku">${p.sku||'—'}</span></td>
+      <td>${p.nombre}</td>
+      <td style="text-align:center">${p.stock}</td>
+      <td style="text-align:center;font-weight:700">${cnt}</td>
+      <td style="text-align:center;color:${dc};font-weight:700">${diff>0?'+'+diff:diff===0?'✓':diff}</td>
+    </tr>`;
+  }).join('');
+  const total=Object.keys(_conteoData).length;
+  const diffs=Object.entries(_conteoData).filter(([id,cnt])=>{const p=db.prods.find(x=>x.id===id);return p&&cnt!==p.stock;}).length;
+  document.getElementById('conteo-sum-body').innerHTML=rows;
+  document.getElementById('conteo-sum-stats').innerHTML=`
+    <span class="badge b-rose">${total} producto${total>1?'s':''} contado${total>1?'s':''}</span>
+    ${diffs?`<span class="badge b-amber">${diffs} con diferencia${diffs>1?'s':''}</span>`:'<span class="badge b-green">Sin diferencias</span>'}`;
+  openModal('modal-conteo');
+}
+function applyConteo(){
+  if(!confirm(`¿Actualizar el stock de ${Object.keys(_conteoData).length} producto(s) con el conteo físico?`))return;
+  Object.entries(_conteoData).forEach(([id,cnt])=>{
+    const p=db.prods.find(x=>x.id===id);
+    if(p){p.stock=cnt;}
+  });
+  sbSaveProds(db.prods);
+  closeModal('modal-conteo');
+  renderInv();updateInvStats();
+  toast(`✅ Stock actualizado para ${Object.keys(_conteoData).length} producto(s)`);
+  _conteoData={};
+}
 // ============================================================
 // =================== SCANNER CAMERA =========================
 // ============================================================
@@ -2031,7 +2277,9 @@ function openScan(mode){
   _scanMode=mode;
   document.getElementById('scan-fb').innerHTML='';
   document.getElementById('scan-manual').value='';
-  document.getElementById('scan-title').textContent=mode==='pos'?'📷 Escanear producto para vender':'📷 Escanear código del producto';
+  const _scanTitles={'pos':'📷 Escanear producto para vender','sku':'📷 Escanear código del producto','verif':'📷 Verificar recepción — escanea lo que llegó físicamente','conteo':'📋 Conteo físico — escanea cada pieza'};
+  document.getElementById('scan-title').textContent=_scanTitles[mode]||'📷 Escanear';
+  document.getElementById('scan-extra').innerHTML='';
   document.getElementById('scan-ov').classList.add('open');
   setTimeout(startScanQ,400);
 }
@@ -2063,7 +2311,6 @@ function handleScan(code){
   } else if(_scanMode==='sku'){
     closeScan();
     document.getElementById('p-sku').value=code.toUpperCase();
-    // Try to find product and fill price
     const p=db.prods.find(x=>x.sku&&x.sku.toUpperCase()===code.toUpperCase());
     if(p&&!document.getElementById('p-costo').value){
       document.getElementById('p-costo').value=p.costo;
@@ -2071,6 +2318,28 @@ function handleScan(code){
       calcPrecio();
     }
     toast('✅ SKU escaneado: '+code);
+  } else if(_scanMode==='verif'){
+    const cu=code.toUpperCase();
+    const idx=_vItems.findIndex(x=>x.sku&&x.sku.toUpperCase()===cu);
+    if(idx>=0){
+      if(!_vItems[idx].verificado) toggleVI(idx);
+      const rec=_vItems.filter(x=>x.verificado).length;
+      fb.innerHTML=`<div style="background:rgba(76,175,122,.2);border-radius:8px;padding:9px;color:#a8f0c6;font-size:13px;text-align:center">✅ <strong>${_vItems[idx].nombre}</strong><br><small>${rec}/${_vItems.length} verificados</small></div>`;
+      if(rec===_vItems.length){fb.innerHTML+=`<div style="margin-top:8px;text-align:center;font-size:12px;color:#a8f0c6">🎉 ¡Todo verificado! Puedes cerrar el escáner.</div>`;}
+    } else {
+      fb.innerHTML=`<div style="background:rgba(255,180,50,.15);border-radius:8px;padding:9px;color:rgba(255,200,100,.9);font-size:13px;text-align:center">⚠️ No está en la factura: <strong>${code}</strong></div>`;
+    }
+  } else if(_scanMode==='conteo'){
+    const cu=code.toUpperCase();
+    const prod=db.prods.find(x=>x.sku&&x.sku.toUpperCase()===cu);
+    if(prod){
+      _conteoData[prod.id]=(_conteoData[prod.id]||0)+1;
+      const cnt=_conteoData[prod.id];
+      fb.innerHTML=`<div style="background:rgba(76,175,122,.2);border-radius:8px;padding:9px;color:#a8f0c6;font-size:13px;text-align:center">✅ <strong>${prod.nombre}</strong><br><small>Contado: ${cnt} pza${cnt>1?'s':''} · Stock actual: ${prod.stock}</small></div>`;
+      renderConteoScanTable();
+    } else {
+      fb.innerHTML=`<div style="background:rgba(224,85,85,.15);border-radius:8px;padding:9px;color:rgba(255,150,150,.9);font-size:13px;text-align:center">⚠️ Producto no encontrado: ${code}</div>`;
+    }
   }
 }
 
@@ -2443,6 +2712,7 @@ document.getElementById('btn-new-ped').onclick=openNewPed;
 setupPWA();
 renderInv();
 loadCfg();
+initTasa();
 checkStockAlerts();
 setStatus('Pagado');
 setDeliveryType('mano');
@@ -2969,11 +3239,12 @@ loadFromSB();
 // ============================================================
 function shareProductWA(prodId){
   const p=db.prods.find(x=>x.id===prodId);if(!p)return;
+  const link=getShopLink(prodId);
   const msg=encodeURIComponent(
-    '✨ *'+p.nombre+'*\n'+
+    '🌸 *'+p.nombre+'*\n'+
     '💰 Precio: *'+fmt(p.precio)+'*\n'+
     (p.sku?'🏷️ SKU: '+p.sku+'\n':'')+
-    '🛍️ BlissWave Collection'
+    '\n👆 Pedir aquí:\n'+link
   );
   window.open('https://wa.me/?text='+msg,'_blank');
 }
@@ -2990,19 +3261,31 @@ function saveTracking(saleId,tracking){
 // ============================================================
 // ===== FEATURE 5: CALCULADORA DE FLETE (Modal Producto) =====
 // ============================================================
+function setFletePreset(ship,piezas){
+  document.getElementById('flete-ship').value=ship;
+  document.getElementById('flete-piezas').value=piezas;
+  calcFlete();
+}
 function calcFlete(){
   const c=parseFloat(document.getElementById('p-costo').value)||0;
-  const pct=parseFloat(document.getElementById('flete-pct').value)||30;
+  const ship=parseFloat(document.getElementById('flete-ship').value)||0;
+  const piezas=parseFloat(document.getElementById('flete-piezas').value)||1;
   const margen=parseFloat(document.getElementById('flete-margen').value)||2;
-  const precio=c*(1+pct/100)*margen;
-  document.getElementById('flete-result').textContent=c?fmt(precio):'—';
+  const xpieza=ship/piezas;
+  const costoReal=c+xpieza;
+  const precio=costoReal*margen;
+  const loc=fmtLocal(precio);
+  document.getElementById('flete-xpieza').textContent=ship&&piezas?'$'+xpieza.toFixed(2):'—';
+  document.getElementById('flete-costo-real').textContent=c?'$'+costoReal.toFixed(2):'—';
+  document.getElementById('flete-result').textContent=c?(fmt(precio)+(loc?'\n'+loc:'')):'—';
 }
 function aplicarFlete(){
   const c=parseFloat(document.getElementById('p-costo').value)||0;
   if(!c){toast('⚠️ Ingresa el costo primero',true);return;}
-  const pct=parseFloat(document.getElementById('flete-pct').value)||30;
+  const ship=parseFloat(document.getElementById('flete-ship').value)||0;
+  const piezas=parseFloat(document.getElementById('flete-piezas').value)||1;
   const margen=parseFloat(document.getElementById('flete-margen').value)||2;
-  const precio=c*(1+pct/100)*margen;
+  const precio=(c+ship/piezas)*margen;
   document.getElementById('p-precio').value=precio.toFixed(2);
   toast('🚢 Precio con flete aplicado: '+fmt(precio));
 }
@@ -3601,6 +3884,7 @@ function filtVenPago(val){
   if(sel) sel.value=val;
   if(val==='all'){renderVen();return;}
   if(val==='__pending__'){renderVen(db.sales.filter(v=>v.payStatus==='Pendiente'));return;}
+  if(val==='pendiente_cliente'){renderVen(db.sales.filter(v=>v.payStatus==='pendiente_cliente'));return;}
   renderVen(db.sales.filter(v=>v.payMethod===val));
 }
 
@@ -3633,6 +3917,7 @@ renderVen=function(lista){
   _origRenderVen4(lista);
   renderPorCobrar();
   updatePendingBadge();
+  if(typeof updatePendientesBadge==='function')updatePendientesBadge();
 };
 
 // Patch renderInv para agregar botones de historial y ajuste
@@ -3658,7 +3943,7 @@ renderInv=function(lista){
       </div>
       <div style="font-size:10px;color:var(--text-light);margin-top:1px">min:${getMinStock(p.id)}</div>
     </td>
-    <td>${fmt(p.costo)}</td>
+    <td>${fmt(p.costo)}${fmtLocal(p.costo)?`<br><small style="color:var(--text-light);font-size:10px">${fmtLocal(p.costo)}</small>`:''}</td>
     <td><strong>${fmt(p.precio)}</strong><br><small style="color:var(--green);font-size:10px">+${fmt(p.precio-p.costo)}</small></td>
     <td><span class="badge b-gray">${p.proveedor||'—'}</span></td>
     <td><div style="display:flex;gap:3px;flex-wrap:wrap">
@@ -4286,6 +4571,169 @@ initApp = function(){
 // ============================================================
 // ===== FEATURE 2: BACKUP Y RESTORE JSON =====================
 // ============================================================
+// ============================================================
+// =================== TIENDA PÚBLICA =========================
+// ============================================================
+const _SB_URL='https://acqluzxchywrromkrrio.supabase.co';
+const _SB_KEY='sb_publishable_IWrp0occcOcVLO1fiw7nFQ_um0rsQ35';
+async function _sbPublic(table,query){
+  const r=await fetch(`${_SB_URL}/rest/v1/${table}?${query}`,{headers:{'apikey':_SB_KEY,'Authorization':'Bearer '+_SB_KEY}});
+  return r.json();
+}
+async function initShopPage(){
+  const id=window._SHOP_BUY_ID;if(!id)return;
+  try{
+    const rows=await _sbPublic('products',`id=eq.${id}&select=*`);
+    const p=rows[0];
+    if(!p){document.getElementById('shop-content').innerHTML='<p style="color:#999;text-align:center;padding:40px">Producto no disponible.</p>';return;}
+    renderShopPage(p);
+  }catch(e){document.getElementById('shop-content').innerHTML='<p style="color:#c00;text-align:center;padding:40px">Error al cargar el producto.</p>';}
+}
+function renderShopPage(p){
+  const sc=document.getElementById('shop-content');
+  sc.innerHTML=`
+    ${p.foto?`<img src="${p.foto}" style="width:100%;max-height:320px;object-fit:cover;border-radius:16px;margin-bottom:16px">`
+      :'<div style="width:100%;height:200px;background:#F5E8EE;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:48px;margin-bottom:16px">💛</div>'}
+    <div style="font-family:\'Playfair Display\',serif;font-size:22px;color:#2D1525;margin-bottom:4px">${p.nombre||'Producto'}</div>
+    <div style="font-size:13px;color:#A07880;margin-bottom:16px">${p.proveedor||''}</div>
+    <div style="font-size:28px;font-weight:700;color:#7D3040;margin-bottom:20px">$${(+p.precio).toFixed(2)}</div>
+    ${p.stock>0
+      ?`<div style="background:#E8F8EF;border-radius:10px;padding:8px 14px;font-size:12px;color:#2D8A55;margin-bottom:20px;display:inline-block">✅ Disponible · ${p.stock} en stock</div>`
+      :'<div style="background:#FEE;border-radius:10px;padding:8px 14px;font-size:12px;color:#c00;margin-bottom:20px;display:inline-block">⚠️ Sin stock</div>'}
+    <div style="background:#fff;border-radius:14px;padding:18px;box-shadow:0 2px 12px rgba(0,0,0,.06);margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;color:#2D1525;margin-bottom:12px">📋 Tus datos para el pedido</div>
+      <input id="shop-nombre" type="text" placeholder="Tu nombre" style="width:100%;padding:10px 13px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:14px;margin-bottom:10px;font-family:\'DM Sans\',sans-serif;box-sizing:border-box">
+      <input id="shop-tel" type="tel" placeholder="Tu teléfono / WhatsApp" style="width:100%;padding:10px 13px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:14px;margin-bottom:10px;font-family:\'DM Sans\',sans-serif;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <span style="font-size:13px;color:#7D3040">Cantidad:</span>
+        <button onclick="shopQty(-1)" style="width:32px;height:32px;border-radius:50%;border:1.5px solid #F5E8EE;background:#fff;font-size:18px;cursor:pointer">−</button>
+        <span id="shop-qty" style="font-size:18px;font-weight:700;min-width:24px;text-align:center">1</span>
+        <button onclick="shopQty(1)" style="width:32px;height:32px;border-radius:50%;border:1.5px solid #F5E8EE;background:#fff;font-size:18px;cursor:pointer">+</button>
+      </div>
+    </div>
+    <button onclick="submitShopOrder('${p.id}','${(p.nombre||'').replace(/'/g,'')}',${+p.precio},${+p.costo})" ${p.stock<=0?'disabled':''} style="width:100%;padding:15px;background:linear-gradient(135deg,#C4607E,#C4847A);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:\'DM Sans\',sans-serif">
+      🛍️ Pedir ahora
+    </button>
+    <div id="shop-msg" style="margin-top:12px;text-align:center;font-size:13px"></div>
+    <div style="text-align:center;margin-top:20px;font-size:11px;color:#C4847A">BlissWave Collection · Joyería</div>`;
+}
+let _shopQty=1;
+function shopQty(d){
+  _shopQty=Math.max(1,_shopQty+d);
+  const el=document.getElementById('shop-qty');
+  if(el)el.textContent=_shopQty;
+}
+async function submitShopOrder(prodId,nombre,precio,costo){
+  const cliNombre=document.getElementById('shop-nombre').value.trim();
+  const cliTel=document.getElementById('shop-tel').value.trim();
+  if(!cliNombre||!cliTel){document.getElementById('shop-msg').innerHTML='<span style="color:#c00">Por favor ingresa tu nombre y teléfono.</span>';return;}
+  const msg=document.getElementById('shop-msg');
+  msg.innerHTML='<span style="color:#7D3040">Enviando pedido...</span>';
+  const sale={
+    id:Date.now()+''+Math.random().toString(36).slice(2),
+    fecha:new Date().toISOString(),
+    subtotal:precio*_shopQty,discount:0,total:precio*_shopQty,
+    total_cost:costo*_shopQty,
+    client_name:cliNombre,client_tel:cliTel,client_id:'',
+    pay_method:'Pendiente',pay_status:'pendiente_cliente',
+    items:JSON.stringify([{prodId,name:nombre,qty:_shopQty,price:precio,cost:costo,sub:precio*_shopQty}])
+  };
+  try{
+    await fetch(`${_SB_URL}/rest/v1/sales`,{method:'POST',headers:{'apikey':_SB_KEY,'Authorization':'Bearer '+_SB_KEY,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(sale)});
+    msg.innerHTML='<div style="background:#E8F8EF;border-radius:10px;padding:14px;color:#2D8A55;font-weight:600">✅ ¡Pedido enviado! Te contactaremos pronto por WhatsApp.</div>';
+    document.querySelector('button[onclick*="submitShopOrder"]').style.display='none';
+  }catch(e){msg.innerHTML='<span style="color:#c00">Error al enviar. Intenta de nuevo.</span>';}
+}
+function getShopLink(prodId){return `${location.origin}${location.pathname}?buy=${prodId}`;}
+function shareProduct(prodId,nombre,precio){
+  const link=getShopLink(prodId);
+  const msg=`🌸 *${nombre}*\n💰 $${(+precio).toFixed(2)}\n\n👆 Clic para pedir:\n${link}`;
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`,'_blank');
+}
+// Inicializar tienda si hay ?buy= en URL (después de que el DOM cargue)
+if(window._SHOP_BUY_ID){document.addEventListener('DOMContentLoaded',initShopPage);}
+
+function updatePendientesBadge(){
+  const n=(db.sales||[]).filter(v=>v.payStatus==='pendiente_cliente').length;
+  const b=document.getElementById('badge-pendientes');
+  if(!b)return;
+  if(n>0){b.textContent=n;b.style.display='inline';}
+  else b.style.display='none';
+}
+function aprobarPedidoCliente(saleId){
+  const v=db.sales.find(x=>x.id===saleId);if(!v)return;
+  if(!confirm(`¿Aprobar pedido de ${v.clientName}?\nSe descontará del inventario.`))return;
+  v.payStatus='Pagado';v.payMethod='Cash';
+  (v.items||[]).forEach(item=>{
+    const p=db.prods.find(x=>x.id===item.prodId);
+    if(p)p.stock=Math.max(0,p.stock-(item.qty||1));
+  });
+  sbSaveSale(v);sbSaveProds(db.prods);
+  renderVen();renderInv();updatePendientesBadge();
+  toast('✅ Pedido aprobado e inventario actualizado');
+}
+function compararProveedores(){
+  const provMap={};
+  db.orders.forEach(o=>{
+    const prov=o.proveedor||'Sin proveedor';
+    if(!provMap[prov])provMap[prov]={pedidos:0,piezas:0,totalUSD:0,items:[],ordenes:[]};
+    const m=provMap[prov];
+    m.pedidos++;
+    m.ordenes.push(o);
+    (o.items||[]).forEach(i=>{
+      m.piezas+=(i.cantPedida||i.cantFactura||0);
+      m.totalUSD+=(i.costo||i.precioFactura||0)*(i.cantPedida||i.cantFactura||1);
+      m.items.push(i);
+    });
+  });
+  const provs=Object.entries(provMap).sort((a,b)=>b[1].totalUSD-a[1].totalUSD);
+  if(!provs.length){toast('No hay pedidos aún',true);return;}
+  const rows=provs.map(([prov,d])=>{
+    const promPieza=d.piezas?d.totalUSD/d.piezas:0;
+    const loc=getTasa()?` (${(d.totalUSD*getTasa()).toLocaleString('es-MX',{maximumFractionDigits:0})} ${getMoneda()})`:'';
+    return `<tr>
+      <td><strong>${prov}</strong></td>
+      <td style="text-align:center">${d.pedidos}</td>
+      <td style="text-align:center">${d.piezas.toLocaleString()}</td>
+      <td style="text-align:right"><strong>$${d.totalUSD.toFixed(2)}</strong><br><small style="color:var(--text-light)">${loc}</small></td>
+      <td style="text-align:right">$${promPieza.toFixed(2)}</td>
+      <td style="text-align:right">$${d.pedidos?((d.totalUSD)/d.pedidos).toFixed(2):'0'}</td>
+    </tr>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Comparación Proveedores</title>
+  <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;padding:24px;color:#2D1525}
+  h1{font-size:18px;margin-bottom:16px;color:#7D3040}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{background:#F5E8EE;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#7D3040}
+  td{padding:8px 10px;border-bottom:1px solid #F5E8EE}
+  tr:hover td{background:#FEF5F5}
+  @media print{button{display:none}}</style></head><body>
+  <h1>📊 Comparación de Proveedores</h1>
+  <table><thead><tr><th>Proveedor</th><th style="text-align:center">Pedidos</th><th style="text-align:center">Piezas</th><th style="text-align:right">Total gastado</th><th style="text-align:right">Costo/pieza</th><th style="text-align:right">Promedio/orden</th></tr></thead>
+  <tbody>${rows}</tbody></table>
+  <br><button onclick="window.print()" style="padding:10px 20px;background:#7D3040;color:#fff;border:none;border-radius:8px;cursor:pointer">🖨️ Imprimir</button>
+  </body></html>`;
+  const w=window.open('','_blank','width=680,height:500');
+  w.document.write(html);w.document.close();
+}
+function getTasa(){return parseFloat(localStorage.getItem('bwc_tasa')||'0');}
+function getMoneda(){return localStorage.getItem('bwc_moneda')||'MXN';}
+function fmtLocal(usd){const t=getTasa();if(!t)return '';return ' = '+(usd*t).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2})+' '+getMoneda();}
+function saveTasa(v){
+  const tasa=v||parseFloat(document.getElementById('cfg-tasa').value)||0;
+  const moneda=document.getElementById('cfg-moneda').value;
+  if(tasa)localStorage.setItem('bwc_tasa',tasa);
+  localStorage.setItem('bwc_moneda',moneda);
+  const prev=document.getElementById('cfg-tasa-preview');
+  if(prev)prev.textContent=tasa?`$1 USD = ${tasa.toLocaleString()} ${moneda}`:'';
+}
+function initTasa(){
+  const t=getTasa(),m=getMoneda();
+  const ti=document.getElementById('cfg-tasa');const mi=document.getElementById('cfg-moneda');
+  if(ti&&t)ti.value=t;if(mi)mi.value=m;
+  const prev=document.getElementById('cfg-tasa-preview');
+  if(prev&&t)prev.textContent=`$1 USD = ${t.toLocaleString()} ${m}`;
+}
 function backupJSON(){
   const backup = {
     version: 2,
@@ -4459,7 +4907,7 @@ renderInv = function(lista){
         <button onclick="quickStock('${p.id}',1)" style="background:var(--pink-light);border:none;color:var(--pink-mid);width:22px;height:22px;border-radius:50%;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1">+</button>
       </div>
     </td>
-    <td>${fmt(p.costo)}</td>
+    <td>${fmt(p.costo)}${fmtLocal(p.costo)?`<br><small style="color:var(--text-light);font-size:10px">${fmtLocal(p.costo)}</small>`:''}</td>
     <td><strong>${fmt(p.precio)}</strong><br><small style="color:var(--green);font-size:10px">+${fmt(p.precio-p.costo)} · ${p.precio?Math.round((p.precio-p.costo)/p.precio*100):0}%</small></td>
     <td><span class="badge b-gray">${p.proveedor||'—'}</span></td>
     <td><div style="display:flex;gap:4px;flex-wrap:wrap">
