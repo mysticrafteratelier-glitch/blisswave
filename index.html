@@ -529,19 +529,7 @@ setTimeout(function(){
       <label>Cliente</label>
       <div style="display:flex;gap:6px;align-items:center">
         <select id="pos-cli" onchange="onPosCliChange()" style="flex:1"><option value="">Sin cliente</option></select>
-        <button onclick="openModal('modal-pos-new-cli')" style="background:var(--rose);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:16px;cursor:pointer;line-height:1" title="Agregar cliente nuevo">➕</button>
-      </div>
-    </div>
-    <!-- Modal nuevo cliente desde POS -->
-    <div id="modal-pos-new-cli" class="modal-overlay" onclick="if(event.target===this)closeModal('modal-pos-new-cli')" style="display:none">
-      <div class="modal-box" style="max-width:340px">
-        <div class="modal-header"><span>👤 Nuevo Cliente</span><button class="modal-close" onclick="closeModal('modal-pos-new-cli')">✕</button></div>
-        <div style="padding:16px;display:flex;flex-direction:column;gap:10px">
-          <input id="pnc-nombre" type="text" placeholder="Nombre *" style="padding:9px 12px;border:1.5px solid var(--pink);border-radius:8px;font-size:14px;background:var(--pink-light);color:var(--text)">
-          <input id="pnc-tel" type="tel" placeholder="Teléfono" style="padding:9px 12px;border:1.5px solid var(--pink);border-radius:8px;font-size:14px;background:var(--pink-light);color:var(--text)">
-          <input id="pnc-email" type="email" placeholder="Email" style="padding:9px 12px;border:1.5px solid var(--pink);border-radius:8px;font-size:14px;background:var(--pink-light);color:var(--text)">
-          <button class="btn" onclick="savePosNewCli()" style="margin-top:4px">✅ Guardar y seleccionar</button>
-        </div>
+        <button onclick="openCliDesdePos()" style="background:var(--rose);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:16px;cursor:pointer;line-height:1" title="Agregar cliente nuevo">➕</button>
       </div>
     </div>
     <!-- Panel saldo cliente -->
@@ -5649,26 +5637,28 @@ function addClientSaldoTx(cid, monto, concepto, tipo){
 }
 
 // ---- POS: mostrar saldo cuando se elige cliente ----
-function savePosNewCli(){
-  const nombre = document.getElementById('pnc-nombre').value.trim();
-  if(!nombre){toast('⚠️ Escribe el nombre del cliente');return;}
-  const tel   = document.getElementById('pnc-tel').value.trim();
-  const email = document.getElementById('pnc-email').value.trim();
-  const c = {id:'cli-'+Date.now(),nombre,tel,email,notas:'',saldo:0,deuda:0,fecha:new Date().toISOString()};
-  db.clients.push(c);
-  sbSaveCli(c);
-  renderCli();
-  // refrescar select y seleccionar el nuevo cliente
-  const sel = document.getElementById('pos-cli');
-  const opt = document.createElement('option');
-  opt.value = c.id; opt.textContent = c.nombre + (c.tel?' · '+c.tel:'');
-  sel.appendChild(opt);
-  sel.value = c.id;
-  onPosCliChange();
-  closeModal('modal-pos-new-cli');
-  ['pnc-nombre','pnc-tel','pnc-email'].forEach(id=>document.getElementById(id).value='');
-  toast('✅ Cliente guardado y seleccionado');
+let _cliDesdePos = false;
+function openCliDesdePos(){
+  _cliDesdePos = true;
+  ['c-id','c-nombre','c-tel','c-email','c-notas'].forEach(i=>document.getElementById(i).value='');
+  openModal('modal-cli');
 }
+const _origSaveCli = saveCli;
+saveCli = function(){
+  _origSaveCli();
+  if(_cliDesdePos){
+    _cliDesdePos = false;
+    const ultimo = db.clients[db.clients.length-1];
+    if(ultimo){
+      const sel = document.getElementById('pos-cli');
+      let opt = sel.querySelector(`option[value="${ultimo.id}"]`);
+      if(!opt){ opt = document.createElement('option'); opt.value=ultimo.id; sel.appendChild(opt); }
+      opt.textContent = ultimo.nombre + (ultimo.tel?' · '+ultimo.tel:'');
+      sel.value = ultimo.id;
+      onPosCliChange();
+    }
+  }
+};
 function onPosCliChange(){
   _saldoAplicadoPOS = 0;
   const cid = document.getElementById('pos-cli').value;
