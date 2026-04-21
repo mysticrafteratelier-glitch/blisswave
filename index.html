@@ -2689,7 +2689,7 @@ function setupPWA(){
     return c.toDataURL('image/png');
   }
   const icon192=makeIcon(192);
-  const manifest={name:'BlissWave Collection',short_name:'BlissWave',display:'standalone',background_color:'#2D1525',theme_color:'#2D1525',start_url:'./',icons:[{src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'}]};
+  const manifest={name:'BlissWave Collection',short_name:'BlissWave',display:'standalone',background_color:'#FAF0EC',theme_color:'#C48878',start_url:'./',icons:[{src:icon192,sizes:'192x192',type:'image/png',purpose:'any maskable'}]};
   const mb=new Blob([JSON.stringify(manifest)],{type:'application/json'});
   document.getElementById('pwa-manifest').href=URL.createObjectURL(mb);
   const sw=`const C='bwc-v6';self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['./'])).then(()=>self.skipWaiting()));});self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim()));});self.addEventListener('fetch',e=>{if(e.request.mode==='navigate'){e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open(C).then(ca=>ca.put(e.request,c));return r;}).catch(()=>caches.match(e.request)));}else{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)));}});`;
