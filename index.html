@@ -1020,6 +1020,57 @@ setTimeout(function(){
 <!-- ===== MODALES ===== -->
 
 <!-- Producto -->
+<!-- Modal agregar producto rápido desde POS -->
+<div class="modal-overlay" id="modal-pos-quick">
+<div class="modal" style="max-width:400px">
+  <h3>➕ Nuevo producto</h3>
+  <div style="display:flex;gap:12px;margin-bottom:14px;align-items:flex-start">
+    <div style="flex-shrink:0;text-align:center">
+      <div id="pq-foto-prev-wrap" style="width:80px;height:80px;border-radius:10px;overflow:hidden;background:var(--pink-light);border:1.5px dashed var(--rose);display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer" onclick="document.getElementById('pq-foto-inp').click()">📷</div>
+      <input type="file" id="pq-foto-inp" accept="image/*" capture="environment" style="display:none" onchange="pqFotoLoad(event)">
+      <div style="font-size:10px;color:var(--text-light);margin-top:4px">Toca para foto</div>
+    </div>
+    <div style="flex:1">
+      <div class="fg" style="margin-bottom:8px">
+        <label>SKU / Código</label>
+        <div style="display:flex;gap:6px">
+          <input id="pq-sku" type="text" placeholder="Escanea o escribe" style="flex:1;padding:8px 10px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;font-family:'DM Sans',sans-serif">
+          <button onclick="pqGenSKU()" style="background:var(--pink-light);border:1.5px solid var(--pink);border-radius:9px;padding:6px 10px;font-size:12px;color:var(--pink-deep);cursor:pointer;white-space:nowrap">⚡ Auto</button>
+          <button onclick="openScan('pq')" style="background:var(--pink-light);border:1.5px solid var(--pink);border-radius:9px;padding:6px 10px;font-size:14px;cursor:pointer">📷</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="fg"><label>Nombre del producto</label><input id="pq-nombre" type="text" placeholder="Ej: Pulsera dorada con cristal"></div>
+  <div class="fr2">
+    <div class="fg"><label>Categoría</label>
+      <select id="pq-cat">
+        <option value="Pulsera">Pulsera</option><option value="Arete">Arete</option>
+        <option value="Collar">Collar</option><option value="Anillo">Anillo</option>
+        <option value="Dije">Dije</option><option value="Tobillera">Tobillera</option>
+        <option value="Cadena">Cadena</option><option value="Set">Set</option>
+        <option value="Otro">Otro</option>
+      </select>
+    </div>
+    <div class="fg"><label>Proveedor</label>
+      <select id="pq-prov"><option value="Xuping">Xuping</option><option value="CM">CM</option><option value="Otro">Otro</option></select>
+    </div>
+  </div>
+  <div class="fr2">
+    <div class="fg"><label>Costo ($)</label><input id="pq-costo" type="number" placeholder="0.00" step="0.01" min="0"></div>
+    <div class="fg"><label>Precio venta ($)</label><input id="pq-precio" type="number" placeholder="0.00" step="0.01" min="0"></div>
+  </div>
+  <div class="fr2">
+    <div class="fg"><label>Stock inicial</label><input id="pq-stock" type="number" value="1" min="1"></div>
+    <div></div>
+  </div>
+  <div style="display:flex;gap:8px;margin-top:6px">
+    <button class="btn btn-outline" onclick="closeModal('modal-pos-quick')" style="flex:1">Cancelar</button>
+    <button class="btn" onclick="savePosQuickProd()" style="flex:2;background:linear-gradient(135deg,var(--pink-deep),var(--pink-mid))">💛 Guardar y agregar al carrito</button>
+  </div>
+</div>
+</div>
+
 <div class="modal-overlay" id="modal-prod">
 <div class="modal">
   <h3>💛 Producto</h3>
@@ -1504,12 +1555,17 @@ function posSearch(q){
   if(!q||q.length<1){res.classList.remove('open');return;}
   const ql=q.toLowerCase();
   const matches=db.prods.filter(p=>p.stock>0&&((p.nombre||'').toLowerCase().includes(ql)||(p.sku||'').toLowerCase().includes(ql))).slice(0,8);
-  if(!matches.length){res.classList.remove('open');return;}
+  const addBtn=`<div class="pr-item" style="color:var(--pink-deep);font-weight:600;gap:8px" onclick="openPosQuickAdd('${q.replace(/'/g,"\\'")}')">
+    <div>➕ Agregar <strong>"${q.substring(0,30)}"</strong> como nuevo producto</div>
+    <div style="font-size:11px;color:var(--text-light)">Foto · SKU · Inventario</div>
+  </div>`;
+  if(!matches.length){res.innerHTML=addBtn;res.classList.add('open');return;}
   res.innerHTML=matches.map(p=>`
     <div class="pr-item" onclick="addToCart('${p.id}');document.getElementById('pos-q').value='';posSearch('')">
-      <div><div class="pr-name">${p.nombre}</div><div class="pr-sku">${p.sku||'—'} · <span class="badge b-rose" style="font-size:10px">${p.categoria}</span></div></div>
+      ${p.foto?`<img src="${p.foto}" style="width:36px;height:36px;border-radius:7px;object-fit:cover;flex-shrink:0">`:''}
+      <div style="flex:1"><div class="pr-name">${p.nombre}</div><div class="pr-sku">${p.sku||'—'} · <span class="badge b-rose" style="font-size:10px">${p.categoria}</span></div></div>
       <div style="text-align:right"><div class="pr-price">${fmt(p.precio)}</div><div class="pr-stock">Stock: ${p.stock}</div></div>
-    </div>`).join('');
+    </div>`).join('')+addBtn;
   res.classList.add('open');
 }
 
@@ -1520,7 +1576,7 @@ function posAddBySKU(code){
   let p=db.prods.find(x=>x.sku&&x.sku.toUpperCase()===n);
   if(!p)p=db.prods.find(x=>x.sku&&(x.sku.toUpperCase().includes(n)||n.includes(x.sku.toUpperCase())));
   if(!p)p=db.prods.find(x=>(x.nombre||'').toLowerCase().includes(code.toLowerCase()));
-  if(!p){toast('⚠️ Producto no encontrado: '+n.substring(0,20),true);return;}
+  if(!p){openPosQuickAdd(code);return;}
   addToCart(p.id);
 }
 
@@ -2321,8 +2377,12 @@ function handleScan(code){
       addToCart(p.id);
       fb.innerHTML=`<div style="background:rgba(76,175,122,.2);border-radius:8px;padding:9px;color:#a8f0c6;font-size:13px;text-align:center">✅ ${p.nombre} — ${fmt(p.precio)}<br><small>Sigue escaneando para agregar más</small></div>`;
     } else {
-      fb.innerHTML=`<div style="background:rgba(224,85,85,.15);border-radius:8px;padding:9px;color:rgba(255,150,150,.9);font-size:13px;text-align:center">⚠️ No encontrado: ${code}</div>`;
+      fb.innerHTML=`<div style="background:rgba(224,85,85,.15);border-radius:8px;padding:9px;color:rgba(255,150,150,.9);font-size:13px;text-align:center">⚠️ No encontrado: ${code}<br><button onclick="closeScan();openPosQuickAdd('${code}')" style="margin-top:6px;background:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--pink-deep);cursor:pointer">➕ Agregar como nuevo producto</button></div>`;
     }
+  } else if(_scanMode==='pq'){
+    closeScan();
+    document.getElementById('pq-sku').value=code.toUpperCase();
+    toast('✅ Código escaneado: '+code);
   } else if(_scanMode==='sku'){
     closeScan();
     document.getElementById('p-sku').value=code.toUpperCase();
@@ -5596,6 +5656,68 @@ confirmDevolucion = function(saleId){
   }
 };
 
+// ============================================================
+// ===== QUICK-ADD PRODUCTO DESDE POS =========================
+// ============================================================
+let _pqFoto=null;
+function openPosQuickAdd(sku){
+  _pqFoto=null;
+  document.getElementById('pq-sku').value=(sku||'').toUpperCase();
+  document.getElementById('pq-nombre').value='';
+  document.getElementById('pq-costo').value='';
+  document.getElementById('pq-precio').value='';
+  document.getElementById('pq-stock').value='1';
+  document.getElementById('pq-cat').value='Pulsera';
+  document.getElementById('pq-prov').value='Otro';
+  const prev=document.getElementById('pq-foto-prev-wrap');
+  prev.innerHTML='📷';prev.style.background='var(--pink-light)';
+  document.getElementById('pos-q').value='';
+  posSearch('');
+  openModal('modal-pos-quick');
+  setTimeout(()=>document.getElementById('pq-nombre').focus(),200);
+}
+function pqFotoLoad(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    _pqFoto=ev.target.result;
+    const prev=document.getElementById('pq-foto-prev-wrap');
+    prev.innerHTML=`<img src="${_pqFoto}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  r.readAsDataURL(f);
+}
+function pqGenSKU(){
+  const cat=document.getElementById('pq-cat').value.substring(0,2).toUpperCase();
+  const sku=cat+'-'+Date.now().toString(36).toUpperCase().slice(-5);
+  document.getElementById('pq-sku').value=sku;
+}
+function savePosQuickProd(){
+  const nombre=document.getElementById('pq-nombre').value.trim();
+  const precio=parseFloat(document.getElementById('pq-precio').value)||0;
+  const costo=parseFloat(document.getElementById('pq-costo').value)||0;
+  const stock=parseInt(document.getElementById('pq-stock').value)||1;
+  if(!nombre){toast('⚠️ Ingresa el nombre del producto',true);return;}
+  if(!precio){toast('⚠️ Ingresa el precio de venta',true);return;}
+  let sku=document.getElementById('pq-sku').value.trim().toUpperCase();
+  if(!sku){
+    const cat=document.getElementById('pq-cat').value.substring(0,2).toUpperCase();
+    sku=cat+'-'+Date.now().toString(36).toUpperCase().slice(-5);
+  }
+  const np={
+    id:'prod-'+Date.now()+Math.random().toString(36).slice(2),
+    sku,nombre,
+    categoria:document.getElementById('pq-cat').value,
+    proveedor:document.getElementById('pq-prov').value,
+    stock,costo,precio,
+    foto:_pqFoto||null
+  };
+  db.prods.push(np);
+  sbSaveProd(np);
+  renderInv();updateInvStats();
+  closeModal('modal-pos-quick');
+  addToCart(np.id);
+  toast(`✅ "${nombre}" agregado al inventario y al carrito`);
+}
 // ============================================================
 // ===== POLLING: PEDIDOS NUEVOS DE CLIENTES ==================
 // ============================================================
