@@ -1188,20 +1188,74 @@ setTimeout(function(){
 
 <!-- Nuevo pedido -->
 <div class="modal-overlay" id="modal-ped">
-<div class="modal modal-lg">
-  <h3>🚚 Nuevo Pedido</h3>
-  <div class="fr2">
-    <div class="fg"><label>Proveedor</label><select id="np-prov"><option value="Xuping">Xuping</option><option value="CM">CM Chuanglida</option><option value="Otro">Otro</option></select></div>
-    <div class="fg"><label>Llegada estimada</label><input id="np-fecha" type="date"></div>
+<div class="modal modal-lg" style="max-width:520px">
+  <h3>📦 Recibir mercancía</h3>
+
+  <!-- Encabezado del pedido -->
+  <div class="fr2" style="margin-bottom:10px">
+    <div class="fg"><label>Proveedor</label>
+      <select id="np-prov"><option value="Xuping">Xuping</option><option value="CM">CM Chuanglida</option><option value="Otro">Otro</option></select>
+    </div>
+    <div class="fg"><label>Fecha / # Orden (opcional)</label><input id="np-notas" type="text" placeholder="Ej: INV-2024-001"></div>
   </div>
-  <div class="fg"><label>Notas (# orden etc.)</label><input id="np-notas" type="text"></div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 5px">
-    <strong style="font-size:13px">Artículos</strong>
-    <button class="btn btn-sm btn-outline" onclick="addPedRow()">+ Artículo</button>
+
+  <!-- Lista de productos agregados -->
+  <div id="np-lista" style="margin-bottom:10px"></div>
+
+  <!-- Formulario para agregar un producto -->
+  <div style="background:var(--pink-light);border:1.5px solid var(--pink);border-radius:12px;padding:14px">
+    <div style="font-size:12px;font-weight:700;color:var(--pink-deep);letter-spacing:.5px;text-transform:uppercase;margin-bottom:12px">Agregar producto</div>
+
+    <!-- Foto + SKU -->
+    <div style="display:flex;gap:12px;align-items:flex-start;margin-bottom:12px">
+      <div style="flex-shrink:0;text-align:center">
+        <div id="np-foto-prev" style="width:72px;height:72px;border-radius:10px;overflow:hidden;background:#fff;border:1.5px dashed var(--rose);display:flex;align-items:center;justify-content:center;font-size:26px;cursor:pointer" onclick="document.getElementById('np-foto-inp').click()">📷</div>
+        <input type="file" id="np-foto-inp" accept="image/*" capture="environment" style="display:none" onchange="npFotoLoad(event)">
+        <div style="font-size:9px;color:var(--text-light);margin-top:3px">Toca para foto</div>
+      </div>
+      <div style="flex:1">
+        <label style="font-size:11px;font-weight:500;color:var(--text-light);text-transform:uppercase;letter-spacing:.5px">SKU / Código</label>
+        <div style="display:flex;gap:5px;margin-top:3px">
+          <input id="np-sku" type="text" placeholder="Escanea o escribe" style="flex:1;padding:8px 10px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;font-family:'DM Sans',sans-serif;background:#fff">
+          <button onclick="openScan('np')" title="Escanear" style="background:#fff;border:1.5px solid var(--pink);border-radius:9px;padding:7px 10px;font-size:14px;cursor:pointer">📷</button>
+          <button onclick="npGenSKU()" title="Auto-generar" style="background:#fff;border:1.5px solid var(--pink);border-radius:9px;padding:7px 9px;font-size:12px;color:var(--pink-deep);cursor:pointer;font-weight:700">⚡</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fg" style="margin-bottom:8px"><label>Nombre / Descripción</label><input id="np-nombre" type="text" placeholder="Ej: Pulsera cubana flor 14K"></div>
+
+    <div class="fr2" style="margin-bottom:8px">
+      <div class="fg"><label>Tipo de joya</label>
+        <select id="np-tipo">
+          <option value="">— Sin especificar —</option>
+          <option value="Pulsera">Pulsera</option><option value="Arete">Arete</option>
+          <option value="Collar">Collar</option><option value="Anillo">Anillo</option>
+          <option value="Dije">Dije</option><option value="Tobillera">Tobillera</option>
+          <option value="Cadena">Cadena</option><option value="Set">Set</option>
+        </select>
+      </div>
+      <div class="fg"><label>Material</label><input id="np-material" type="text" placeholder="Ej: Gold plated 18K"></div>
+    </div>
+
+    <div class="fr2" style="margin-bottom:8px">
+      <div class="fg"><label>Costo (USD)</label><input id="np-costo" type="number" placeholder="0.00" step="0.01" min="0" oninput="npCalcPrecio()"></div>
+      <div class="fg"><label>Precio venta ($)</label><input id="np-precio" type="number" placeholder="Auto × 2" step="0.01" min="0"></div>
+    </div>
+
+    <div class="fg" style="margin-bottom:12px"><label>Cantidad (piezas)</label><input id="np-cant" type="number" value="1" min="1" style="max-width:100px"></div>
+
+    <button onclick="npAgregarItem()" style="width:100%;padding:11px;background:linear-gradient(135deg,var(--pink-deep),var(--pink-mid));color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif">
+      ➕ Agregar a la orden
+    </button>
   </div>
-  <div style="font-size:11px;color:var(--text-light);margin-bottom:8px">SKU = código del barcode · USD = precio de la factura · Cant = piezas</div>
-  <div class="items-form" id="ped-items"></div>
-  <div class="ma"><button class="btn btn-outline" onclick="closeModal('modal-ped')">Cancelar</button><button class="btn" onclick="savePed()">💛 Crear Pedido</button></div>
+
+  <div class="ma" style="margin-top:14px">
+    <button class="btn btn-outline" onclick="closeModal('modal-ped')">Cancelar</button>
+    <button class="btn" id="np-save-btn" onclick="savePedNuevo()" style="background:linear-gradient(135deg,var(--pink-deep),var(--pink-mid));opacity:.4;cursor:default" disabled>
+      💛 Guardar al inventario (<span id="np-count">0</span>)
+    </button>
+  </div>
 </div>
 </div>
 
@@ -2012,23 +2066,107 @@ function addPedRow(){
     <button class="del-btn" onclick="document.getElementById('${id}').remove()">✕</button>`;
   document.getElementById('ped-items').appendChild(d);
 }
+let _npItems=[];
+let _npFoto=null;
 function openNewPed(){
-  document.getElementById('np-notas').value='';document.getElementById('np-fecha').value='';
-  document.getElementById('ped-items').innerHTML='';_pedRows=0;addPedRow();openModal('modal-ped');
+  _npItems=[];_npFoto=null;
+  document.getElementById('np-notas').value='';
+  document.getElementById('np-lista').innerHTML='';
+  npResetForm();
+  const btn=document.getElementById('np-save-btn');
+  btn.disabled=true;btn.style.opacity='.4';btn.style.cursor='default';
+  document.getElementById('np-count').textContent='0';
+  openModal('modal-ped');
 }
-function savePed(){
+function npResetForm(){
+  _npFoto=null;
+  ['np-sku','np-nombre','np-material','np-costo','np-precio'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('np-cant').value='1';
+  document.getElementById('np-tipo').value='';
+  const prev=document.getElementById('np-foto-prev');
+  prev.innerHTML='📷';prev.style.background='#fff';
+}
+function npFotoLoad(e){
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    _npFoto=ev.target.result;
+    const prev=document.getElementById('np-foto-prev');
+    prev.innerHTML=`<img src="${_npFoto}" style="width:100%;height:100%;object-fit:cover">`;
+  };
+  r.readAsDataURL(f);
+}
+function npGenSKU(){
+  const tipo=document.getElementById('np-tipo').value||'XX';
+  const pref=tipo.substring(0,2).toUpperCase();
+  document.getElementById('np-sku').value=pref+'-'+Date.now().toString(36).toUpperCase().slice(-5);
+}
+function npCalcPrecio(){
+  const c=parseFloat(document.getElementById('np-costo').value)||0;
+  if(c&&!document.getElementById('np-precio').value)
+    document.getElementById('np-precio').value=(c*2).toFixed(2);
+}
+function npAgregarItem(){
+  const nombre=document.getElementById('np-nombre').value.trim();
+  const costo=parseFloat(document.getElementById('np-costo').value)||0;
+  const precio=parseFloat(document.getElementById('np-precio').value)||costo*2;
+  if(!nombre){toast('⚠️ Ingresa el nombre del producto',true);return;}
+  let sku=document.getElementById('np-sku').value.trim().toUpperCase();
+  if(!sku){npGenSKU();sku=document.getElementById('np-sku').value;}
+  const item={
+    id:Date.now()+''+Math.random().toString(36).slice(2),
+    sku,nombre,
+    tipo:document.getElementById('np-tipo').value,
+    material:document.getElementById('np-material').value.trim(),
+    costo,precio,
+    cantPedida:parseInt(document.getElementById('np-cant').value)||1,
+    foto:_npFoto||null,verificado:true
+  };
+  _npItems.push(item);
+  npRenderLista();
+  npResetForm();
+  setTimeout(()=>document.getElementById('np-nombre').focus(),100);
+  toast(`✅ "${nombre}" agregado`);
+}
+function npRenderLista(){
+  const n=_npItems.length;
+  document.getElementById('np-count').textContent=n;
+  const btn=document.getElementById('np-save-btn');
+  btn.disabled=!n;btn.style.opacity=n?'1':'.4';btn.style.cursor=n?'pointer':'default';
+  document.getElementById('np-lista').innerHTML=n?`
+    <div style="background:#fff;border:1.5px solid var(--pink);border-radius:10px;padding:10px;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:var(--pink-deep);margin-bottom:8px">✅ ${n} producto${n>1?'s':''} en la orden</div>
+      ${_npItems.map((it,i)=>`
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #F5E8EE">
+          ${it.foto?`<img src="${it.foto}" style="width:36px;height:36px;border-radius:7px;object-fit:cover;flex-shrink:0">`:`<div style="width:36px;height:36px;border-radius:7px;background:var(--pink-light);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">💛</div>`}
+          <div style="flex:1;min-width:0">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${it.nombre}</div>
+            <div style="font-size:11px;color:var(--text-light)">${it.sku} · ${it.cantPedida} pzas · $${it.costo.toFixed(2)} → $${it.precio.toFixed(2)}</div>
+          </div>
+          <button onclick="_npItems.splice(${i},1);npRenderLista()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px">✕</button>
+        </div>`).join('')}
+    </div>`:''
+  ;
+}
+function savePedNuevo(){
+  if(!_npItems.length){toast('⚠️ Agrega al menos un producto',true);return;}
   const prov=document.getElementById('np-prov').value;
-  const rows=document.querySelectorAll('#ped-items .irow');const items=[];
-  rows.forEach(r=>{
-    const inp=r.querySelectorAll('input');
-    const sku=inp[0].value.trim().toUpperCase();const nombre=inp[1].value.trim();const costoUSD=+inp[2].value||0;const cant=+inp[3].value||6;
-    if(nombre||sku)items.push({sku,nombre:nombre||sku,cantPedida:cant,costo:costoUSD,verificado:false});
-  });
-  if(!items.length)return alert('Agrega al menos un artículo');
-  const _ord={id:Date.now()+'',fecha:now(),proveedor:prov,notas:document.getElementById('np-notas').value.trim(),fechaEst:document.getElementById('np-fecha').value,estado:'pendiente',items,facturaData:null};
-  db.orders.unshift(_ord);
-  sbSaveOrder(_ord);closeModal('modal-ped');renderPed();toast('✅ Pedido creado');
+  const notas=document.getElementById('np-notas').value.trim();
+  // Agregar al inventario
+  _npItems.forEach(item=>addToInventory(item,prov,item.cantPedida));
+  sbSaveProds(db.prods);
+  // Guardar orden como registro
+  const _ord={id:Date.now()+'',fecha:now(),proveedor:prov,notas,fechaEst:'',estado:'recibido',items:_npItems,facturaData:null};
+  db.orders.unshift(_ord);sbSaveOrder(_ord);
+  // Movimiento en caja
+  const tot=_npItems.reduce((s,i)=>s+(i.costo||0)*(i.cantPedida||1),0);
+  if(tot>0){const mv={id:Date.now()+'mv',fecha:now(),tipo:'egreso',monto:tot,desc:`Compra ${prov}: ${_npItems.map(i=>i.nombre).join(', ').substring(0,80)}`};db.movements.unshift(mv);sbSaveMov(mv);}
+  closeModal('modal-ped');renderPed();renderInv();updateInvStats();
+  toast(`✅ ${_npItems.length} producto${_npItems.length>1?'s':''} agregados al inventario`);
+  _npItems=[];
 }
+// Modo scan 'np' ya manejado en handleScan patch abajo
+
 function renderPed(){
   const f=document.getElementById('ped-filter')?.value||'all';
   const lista=f==='all'?db.orders:db.orders.filter(p=>p.estado===f);
@@ -2375,6 +2513,10 @@ function handleScan(code){
     } else {
       fb.innerHTML=`<div style="background:rgba(224,85,85,.15);border-radius:8px;padding:9px;color:rgba(255,150,150,.9);font-size:13px;text-align:center">⚠️ No encontrado: ${code}<br><button onclick="closeScan();openPosQuickAdd('${code}')" style="margin-top:6px;background:#fff;border:none;border-radius:7px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--pink-deep);cursor:pointer">➕ Agregar como nuevo producto</button></div>`;
     }
+  } else if(_scanMode==='np'){
+    closeScan();
+    document.getElementById('np-sku').value=code.toUpperCase();
+    toast('✅ Código escaneado: '+code);
   } else if(_scanMode==='pq'){
     closeScan();
     document.getElementById('pq-sku').value=code.toUpperCase();
