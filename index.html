@@ -527,10 +527,16 @@ setTimeout(function(){
     </div>
     <div class="field">
       <label>Cliente</label>
-      <div style="display:flex;gap:6px;align-items:center">
-        <select id="pos-cli" onchange="onPosCliChange()" style="flex:1"><option value="">Sin cliente</option></select>
-        <button onclick="openCliDesdePos()" style="background:var(--rose);color:#fff;border:none;border-radius:8px;padding:7px 11px;font-size:16px;cursor:pointer;line-height:1" title="Agregar cliente nuevo">➕</button>
+      <div class="pos-search-wrap" id="cli-search-wrap" style="position:relative">
+        <div class="pos-search-inner" style="border-radius:9px">
+          <span style="font-size:15px">👤</span>
+          <input type="text" id="pos-cli-q" placeholder="Buscar cliente..." autocomplete="off"
+            oninput="cliSearch(this.value)" style="flex:1;background:transparent;border:none;outline:none;font-size:13px;color:var(--text)">
+          <button id="pos-cli-clear" onclick="clearPosClient()" style="display:none;background:none;border:none;cursor:pointer;font-size:14px;color:var(--text-light)">✕</button>
+        </div>
+        <div class="pos-results" id="cli-results"></div>
       </div>
+      <input type="hidden" id="pos-cli" value="">
     </div>
     <!-- Panel saldo cliente -->
     <div id="pos-saldo-panel" style="display:none;background:var(--pink-light);border-radius:10px;padding:10px 12px;margin-top:-6px;margin-bottom:6px;font-size:12px">
@@ -1583,9 +1589,7 @@ function updateShipStatus(saleId,s){const d=getDlv(saleId);d.status=s;saveDlv(sa
 // Los botones se inicializan en initApp() ya que el DOM está listo en ese punto
 
 function populatePosClients(){
-  const sel=document.getElementById('pos-cli');
-  sel.innerHTML='<option value="">Sin cliente</option>';
-  db.clients.forEach(c=>sel.innerHTML+=`<option value="${c.id}">${c.nombre}</option>`);
+  // el selector de clientes ahora es búsqueda en tiempo real, no select
 }
 
 function setPay(m){
@@ -1729,7 +1733,7 @@ function registerSale(){
   cart=[];renderCart();
   document.getElementById('pos-disc').value=0;
   document.getElementById('pos-disc-type').value='$';
-  document.getElementById('pos-cli').value='';
+  clearPosClient();
   setStatus('Pagado');
   setDeliveryType('mano');
   document.getElementById('pos-addr').value='';
@@ -5637,23 +5641,54 @@ function addClientSaldoTx(cid, monto, concepto, tipo){
 }
 
 // ---- POS: mostrar saldo cuando se elige cliente ----
+function cliSearch(q){
+  const res=document.getElementById('cli-results');
+  if(!q||q.length<1){res.classList.remove('open');return;}
+  const ql=q.toLowerCase();
+  const matches=db.clients.filter(c=>((c.nombre||'').toLowerCase().includes(ql)||(c.tel||'').includes(ql))).slice(0,6);
+  const addBtn=`<div class="pr-item" style="color:var(--pink-deep);font-weight:600;gap:8px" onclick="openCliDesdePos('${q.replace(/'/g,"\\'")}')">
+    <div>➕ Agregar <strong>"${q.substring(0,30)}"</strong> como nuevo cliente</div>
+    <div style="font-size:11px;color:var(--text-light)">Nombre · Teléfono · Email</div>
+  </div>`;
+  if(!matches.length){res.innerHTML=addBtn;res.classList.add('open');return;}
+  res.innerHTML=matches.map(c=>`
+    <div class="pr-item" onclick="selectPosClient('${c.id}')">
+      <div style="width:32px;height:32px;border-radius:50%;background:var(--pink);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">👤</div>
+      <div style="flex:1"><div class="pr-name">${c.nombre}</div><div class="pr-sku">${c.tel||c.email||'Sin contacto'}</div></div>
+    </div>`).join('')+addBtn;
+  res.classList.add('open');
+}
+function selectPosClient(cid){
+  const c=db.clients.find(x=>x.id===cid);if(!c)return;
+  document.getElementById('pos-cli').value=cid;
+  document.getElementById('pos-cli-q').value=c.nombre+(c.tel?' · '+c.tel:'');
+  document.getElementById('pos-cli-clear').style.display='block';
+  document.getElementById('cli-results').classList.remove('open');
+  onPosCliChange();
+}
+function clearPosClient(){
+  document.getElementById('pos-cli').value='';
+  document.getElementById('pos-cli-q').value='';
+  document.getElementById('pos-cli-clear').style.display='none';
+  onPosCliChange();
+}
+document.addEventListener('click',e=>{if(!e.target.closest('#cli-search-wrap'))document.getElementById('cli-results')?.classList.remove('open');});
+
 let _cliDesdePos = false;
-function openCliDesdePos(){
+function openCliDesdePos(nombre){
   _cliDesdePos = true;
   ['c-id','c-nombre','c-tel','c-email','c-notas','c-cumple'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  if(nombre) document.getElementById('c-nombre').value=nombre;
+  document.getElementById('cli-results').classList.remove('open');
   openModal('modal-cli');
 }
 const _origRenderCli = renderCli;
 renderCli = function(lista){
   _origRenderCli(lista);
-  populatePosClients();
   if(_cliDesdePos){
     _cliDesdePos = false;
     const ultimo = db.clients[db.clients.length-1];
-    if(ultimo){
-      const sel = document.getElementById('pos-cli');
-      if(sel){ sel.value = ultimo.id; onPosCliChange(); }
-    }
+    if(ultimo) selectPosClient(ultimo.id);
   }
 };
 function onPosCliChange(){
