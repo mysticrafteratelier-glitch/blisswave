@@ -5640,22 +5640,19 @@ function addClientSaldoTx(cid, monto, concepto, tipo){
 let _cliDesdePos = false;
 function openCliDesdePos(){
   _cliDesdePos = true;
-  ['c-id','c-nombre','c-tel','c-email','c-notas'].forEach(i=>document.getElementById(i).value='');
+  ['c-id','c-nombre','c-tel','c-email','c-notas','c-cumple'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
   openModal('modal-cli');
 }
-const _origSaveCli = saveCli;
-saveCli = function(){
-  _origSaveCli();
+const _origRenderCli = renderCli;
+renderCli = function(lista){
+  _origRenderCli(lista);
+  populatePosClients();
   if(_cliDesdePos){
     _cliDesdePos = false;
     const ultimo = db.clients[db.clients.length-1];
     if(ultimo){
       const sel = document.getElementById('pos-cli');
-      let opt = sel.querySelector(`option[value="${ultimo.id}"]`);
-      if(!opt){ opt = document.createElement('option'); opt.value=ultimo.id; sel.appendChild(opt); }
-      opt.textContent = ultimo.nombre + (ultimo.tel?' · '+ultimo.tel:'');
-      sel.value = ultimo.id;
-      onPosCliChange();
+      if(sel){ sel.value = ultimo.id; onPosCliChange(); }
     }
   }
 };
