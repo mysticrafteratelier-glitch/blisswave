@@ -1340,12 +1340,13 @@ setTimeout(function(){
   </div>
   <div class="fg">
     <label>Foto / Imagen de la factura CM</label>
-    <input type="file" id="cm-foto-inp" accept="image/*" style="display:none" onchange="cmFotoLoad(event)">
+    <input type="file" id="cm-foto-inp" accept="image/*,application/pdf" style="display:none" onchange="cmFotoLoad(event)">
     <div id="cm-foto-area" onclick="document.getElementById('cm-foto-inp').click()" style="border:2px dashed var(--rose);border-radius:10px;padding:28px;text-align:center;cursor:pointer;background:var(--pink-light)">
-      <div style="font-size:32px;margin-bottom:6px">📷</div>
-      <div style="font-size:13px;color:var(--text-light)">Toca para seleccionar la imagen de la factura</div>
+      <div style="font-size:32px;margin-bottom:6px">📄</div>
+      <div style="font-size:13px;color:var(--text-light)">Toca para seleccionar la factura <strong>(PDF o imagen)</strong></div>
     </div>
     <img id="cm-foto-prev" src="" alt="" style="display:none;width:100%;max-height:220px;object-fit:contain;border-radius:10px;margin-top:8px;border:1px solid var(--pink)">
+    <div id="cm-pdf-prev" style="display:none;padding:12px 14px;background:var(--pink-light);border-radius:10px;margin-top:8px;font-size:13px;color:var(--text)">📄 <span id="cm-pdf-name"></span></div>
   </div>
   <div id="cm-status" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:8px"></div>
   <div id="cm-tabla-wrap" style="display:none">
@@ -5120,13 +5121,21 @@ function openImportCM(){
 function cmFotoLoad(e){
   const file = e.target.files[0]; if(!file) return;
   _cmFotoType = file.type || 'image/jpeg';
+  const isPDF = file.type === 'application/pdf';
   const r = new FileReader();
   r.onload = ev => {
     const full = ev.target.result;
     _cmFotoB64 = full.split(',')[1];
-    document.getElementById('cm-foto-prev').src = full;
-    document.getElementById('cm-foto-prev').style.display = 'block';
     document.getElementById('cm-foto-area').style.display = 'none';
+    if(isPDF){
+      document.getElementById('cm-foto-prev').style.display = 'none';
+      document.getElementById('cm-pdf-prev').style.display = 'block';
+      document.getElementById('cm-pdf-name').textContent = file.name;
+    } else {
+      document.getElementById('cm-foto-prev').src = full;
+      document.getElementById('cm-foto-prev').style.display = 'block';
+      document.getElementById('cm-pdf-prev').style.display = 'none';
+    }
   };
   r.readAsDataURL(file);
 }
@@ -5157,7 +5166,9 @@ async function cmAnalizar(){
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: _cmFotoType, data: _cmFotoB64 } },
+            _cmFotoType === 'application/pdf'
+              ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: _cmFotoB64 } }
+              : { type: 'image', source: { type: 'base64', media_type: _cmFotoType, data: _cmFotoB64 } },
             { type: 'text', text: 'Esta es una factura de proveedor de joyería CM Chuanglida. Extrae TODOS los productos. Para cada uno devuelve un objeto JSON con estos campos exactos: nombre (string, descripción del producto), sku (string, código del producto o vacío ""), cantidad (number, unidades), costo_unitario (number, precio unitario en USD como número, sin símbolo). Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, sin markdown, sin explicación. Ejemplo: [{"nombre":"Brazalete cubano","sku":"B001","cantidad":10,"costo_unitario":2.50}]' }
           ]
         }]
