@@ -5194,14 +5194,19 @@ function cmRenderTabla(){
       <th style="padding:8px;text-align:left;border-bottom:1px solid var(--pink)">SKU</th>
       <th style="padding:8px;text-align:center;border-bottom:1px solid var(--pink)">Cant.</th>
       <th style="padding:8px;text-align:right;border-bottom:1px solid var(--pink)">Costo unit.</th>
+      <th style="padding:8px;text-align:right;border-bottom:1px solid var(--pink)">Precio venta</th>
     </tr></thead>
     <tbody>
-    ${_cmItems.map((it,i)=>`<tr style="border-bottom:1px solid #F5E8EE">
+    ${_cmItems.map((it,i)=>{
+      const autoP = parseFloat(((it.costo_unitario||0)*2).toFixed(2));
+      if(it.precio_venta==null) it.precio_venta = autoP;
+      return `<tr style="border-bottom:1px solid #F5E8EE">
       <td style="padding:6px 8px"><input value="${it.nombre||''}" oninput="_cmItems[${i}].nombre=this.value" style="width:100%;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream)"></td>
       <td style="padding:6px 8px"><input value="${it.sku||''}" oninput="_cmItems[${i}].sku=this.value" style="width:80px;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream);font-family:monospace"></td>
       <td style="padding:6px 8px;text-align:center"><input type="number" value="${it.cantidad||1}" min="1" oninput="_cmItems[${i}].cantidad=+this.value" style="width:55px;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream);text-align:center"></td>
-      <td style="padding:6px 8px;text-align:right"><input type="number" value="${(it.costo_unitario||0).toFixed(2)}" min="0" step="0.01" oninput="_cmItems[${i}].costo_unitario=+this.value" style="width:70px;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream);text-align:right"></td>
-    </tr>`).join('')}
+      <td style="padding:6px 8px;text-align:right"><input type="number" value="${(it.costo_unitario||0).toFixed(2)}" min="0" step="0.01" oninput="_cmItems[${i}].costo_unitario=+this.value;const pEl=document.getElementById('cm-pv-${i}');if(pEl){pEl.value=(+this.value*2).toFixed(2);_cmItems[${i}].precio_venta=+this.value*2;}" style="width:70px;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream);text-align:right"></td>
+      <td style="padding:6px 8px;text-align:right"><input id="cm-pv-${i}" type="number" value="${it.precio_venta.toFixed(2)}" min="0" step="0.01" oninput="_cmItems[${i}].precio_venta=+this.value" style="width:70px;border:1.5px solid var(--rose);border-radius:6px;padding:4px 7px;font-size:12px;background:#FFF0F5;text-align:right;font-weight:600"></td>
+    </tr>`;}).join('')}
     </tbody>
   </table></div>`;
 }
@@ -5211,7 +5216,7 @@ function cmImportar(){
   let added=0, updated=0;
   _cmItems.forEach(it=>{
     if(!it.nombre) return;
-    const precio = parseFloat((it.costo_unitario*2).toFixed(2));
+    const precio = it.precio_venta != null ? parseFloat(it.precio_venta.toFixed(2)) : parseFloat((it.costo_unitario*2).toFixed(2));
     const sku = (it.sku||'CM-'+Date.now()+'-'+Math.random().toString(36).slice(2,5)).toUpperCase();
     const existing = db.prods.find(p=>p.sku===sku);
     if(existing){
