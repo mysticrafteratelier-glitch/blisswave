@@ -645,7 +645,7 @@ setTimeout(function(){
     <div class="page-title">Pedidos & Verificación</div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline" onclick="compararProveedores()">📊 Comparar proveedores</button>
-      <button class="btn btn-outline" onclick="openImportCM()">📄 Importar Factura CM</button>
+      <button class="btn btn-outline" onclick="openImportCM()">📄 Importar Factura</button>
       <button class="btn" id="btn-new-ped">+ Nuevo Pedido</button>
     </div>
   </div>
@@ -1333,7 +1333,15 @@ setTimeout(function(){
 <!-- Importar Factura CM -->
 <div class="modal-overlay" id="modal-import-cm">
 <div class="modal modal-lg">
-  <h3>📄 Importar Factura CM al Inventario</h3>
+  <h3>📄 Importar Factura al Inventario</h3>
+  <div class="fg">
+    <label>Proveedor</label>
+    <select id="cm-proveedor" style="width:100%;padding:8px 11px;border:1.5px solid #F5E8EE;border-radius:9px;font-size:13px;background:var(--cream);color:var(--dark)">
+      <option value="CM">CM Chuanglida</option>
+      <option value="Xuping">Xuping</option>
+      <option value="Otro">Otro</option>
+    </select>
+  </div>
   <div class="fg">
     <label>🔑 Clave API de Anthropic <span style="font-weight:400;color:var(--text-light)">(se guarda en el app)</span></label>
     <input id="cm-api-key" type="password" placeholder="sk-ant-..." style="font-family:monospace">
@@ -5169,7 +5177,7 @@ async function cmAnalizar(){
             _cmFotoType === 'application/pdf'
               ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: _cmFotoB64 } }
               : { type: 'image', source: { type: 'base64', media_type: _cmFotoType, data: _cmFotoB64 } },
-            { type: 'text', text: 'Esta es una factura de proveedor de joyería CM Chuanglida. Extrae TODOS los productos. Para cada uno devuelve un objeto JSON con estos campos exactos: nombre (string, descripción del producto), sku (string, código del producto o vacío ""), cantidad (number, unidades), costo_unitario (number, precio unitario en USD como número, sin símbolo). Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, sin markdown, sin explicación. Ejemplo: [{"nombre":"Brazalete cubano","sku":"B001","cantidad":10,"costo_unitario":2.50}]' }
+            { type: 'text', text: `Esta es una factura de proveedor de joyería (${document.getElementById('cm-proveedor').value}). Extrae TODOS los productos. Para cada uno devuelve un objeto JSON con estos campos exactos: nombre (string, descripción del producto), sku (string, código del producto o vacío ""), cantidad (number, unidades), costo_unitario (number, precio unitario en USD como número, sin símbolo). Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, sin markdown, sin explicación. Ejemplo: [{"nombre":"Brazalete cubano","sku":"B001","cantidad":10,"costo_unitario":2.50}]` }
           ]
         }]
       })
@@ -5234,8 +5242,9 @@ function cmImportar(){
       existing.stock += (it.cantidad||1);
       sbSaveProd(existing); updated++;
     } else {
+      const prov = document.getElementById('cm-proveedor')?.value || 'CM';
       const p={id:'p-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
-        nombre:it.nombre, sku, categoria:'B', proveedor:'CM',
+        nombre:it.nombre, sku, categoria:'B', proveedor:prov,
         stock:it.cantidad||1, minStock:2,
         costo:it.costo_unitario||0, precio,
         foto:'', material:'Gold plated 14K', desc:''};
