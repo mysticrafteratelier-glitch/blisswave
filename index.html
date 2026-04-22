@@ -1304,10 +1304,22 @@ setTimeout(function(){
 <div class="modal">
   <h3>👤 Cliente</h3>
   <input type="hidden" id="c-id">
-  <div class="fg"><label>Nombre</label><input id="c-nombre" type="text"></div>
+  <div class="fg">
+    <label>Foto del cliente</label>
+    <div style="display:flex;align-items:center;gap:10px">
+      <img id="c-foto-prev" src="" alt="" style="display:none;width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--pink);flex-shrink:0">
+      <div id="c-foto-empty" style="width:64px;height:64px;border-radius:50%;background:var(--pink-light);border:2px dashed var(--rose);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0">👤</div>
+      <div style="flex:1">
+        <input type="hidden" id="c-foto">
+        <input type="file" id="c-foto-inp" accept="image/*" style="display:none" onchange="previewCliPhoto(event)">
+        <label for="c-foto-inp" class="photo-upload-btn">📷 Subir foto</label>
+      </div>
+    </div>
+  </div>
+  <div class="fg"><label>Nombre completo</label><input id="c-nombre" type="text" placeholder="Ej: María González"></div>
   <div class="fr2">
-    <div class="fg"><label>Teléfono</label><input id="c-tel" type="tel"></div>
-    <div class="fg"><label>Email</label><input id="c-email" type="email"></div>
+    <div class="fg"><label>Teléfono</label><input id="c-tel" type="tel" placeholder="(555) 123-4567"></div>
+    <div class="fg"><label>Email</label><input id="c-email" type="email" placeholder="correo@ejemplo.com"></div>
   </div>
   <div class="fr2">
     <div class="fg"><label>Notas</label><input id="c-notas" type="text" placeholder="VIP, cliente frecuente..."></div>
@@ -1954,14 +1966,47 @@ function filtVenFecha(f){
 // ============================================================
 // ========================= CLIENTES =========================
 // ============================================================
+function previewCliPhoto(e){
+  const file=e.target.files[0];if(!file)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const src=ev.target.result;
+    document.getElementById('c-foto').value=src;
+    document.getElementById('c-foto-prev').src=src;
+    document.getElementById('c-foto-prev').style.display='block';
+    document.getElementById('c-foto-empty').style.display='none';
+  };r.readAsDataURL(file);
+}
+function _cliResetFotoUI(){
+  document.getElementById('c-foto').value='';
+  document.getElementById('c-foto-prev').style.display='none';
+  document.getElementById('c-foto-prev').src='';
+  document.getElementById('c-foto-empty').style.display='flex';
+  document.getElementById('c-foto-inp').value='';
+}
 function saveCli(){
   const id=document.getElementById('c-id').value;
-  const c={id:id||Date.now()+'',nombre:document.getElementById('c-nombre').value.trim(),tel:document.getElementById('c-tel').value.trim(),email:document.getElementById('c-email').value.trim(),notas:document.getElementById('c-notas').value.trim(),totalCompras:0,ultimaCompra:null};
+  const foto=document.getElementById('c-foto').value;
+  const c={id:id||Date.now()+'',nombre:document.getElementById('c-nombre').value.trim(),tel:document.getElementById('c-tel').value.trim(),email:document.getElementById('c-email').value.trim(),notas:document.getElementById('c-notas').value.trim(),foto:foto||'',totalCompras:0,ultimaCompra:null};
   if(!c.nombre)return alert('Ingresa nombre');
   if(id){const i=db.clients.findIndex(x=>x.id===id);c.totalCompras=db.clients[i]?.totalCompras||0;c.ultimaCompra=db.clients[i]?.ultimaCompra||null;db.clients[i]=c;}else db.clients.push(c);
-  sbSaveCli(c);closeModal('modal-cli');['c-id','c-nombre','c-tel','c-email','c-notas'].forEach(i=>document.getElementById(i).value='');renderCli();toast('✅ Cliente guardado');
+  sbSaveCli(c);closeModal('modal-cli');
+  ['c-id','c-nombre','c-tel','c-email','c-notas','c-cumple'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  _cliResetFotoUI();
+  renderCli();toast('✅ Cliente guardado');
 }
-function editCli(id){const c=db.clients.find(x=>x.id===id);document.getElementById('c-id').value=c.id;document.getElementById('c-nombre').value=c.nombre;document.getElementById('c-tel').value=c.tel||'';document.getElementById('c-email').value=c.email||'';document.getElementById('c-notas').value=c.notas||'';openModal('modal-cli');}
+function editCli(id){
+  const c=db.clients.find(x=>x.id===id);
+  document.getElementById('c-id').value=c.id;
+  document.getElementById('c-nombre').value=c.nombre;
+  document.getElementById('c-tel').value=c.tel||'';
+  document.getElementById('c-email').value=c.email||'';
+  document.getElementById('c-notas').value=c.notas||'';
+  document.getElementById('c-cumple').value=c.cumple||'';
+  if(c.foto){document.getElementById('c-foto').value=c.foto;document.getElementById('c-foto-prev').src=c.foto;document.getElementById('c-foto-prev').style.display='block';document.getElementById('c-foto-empty').style.display='none';}
+  else _cliResetFotoUI();
+  openModal('modal-cli');
+}
 function delCli(id){if(!confirm('¿Eliminar?'))return;db.clients=db.clients.filter(c=>c.id!==id);sbDelCli(id);renderCli();}
 function _cliTier(total){
   if(total>=500) return ' <span class="badge b-amber" title="Gold: +$500">🥇 Gold</span>';
