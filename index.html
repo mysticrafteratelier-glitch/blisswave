@@ -645,6 +645,7 @@ setTimeout(function(){
     <div class="page-title">Pedidos & Verificación</div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-outline" onclick="compararProveedores()">📊 Comparar proveedores</button>
+      <button class="btn btn-outline" onclick="openImportCM()">📄 Importar Factura CM</button>
       <button class="btn" id="btn-new-ped">+ Nuevo Pedido</button>
     </div>
   </div>
@@ -1326,6 +1327,36 @@ setTimeout(function(){
     <div class="fg"><label>🎂 Cumpleaños</label><input id="c-cumple" type="date"></div>
   </div>
   <div class="ma"><button class="btn btn-outline" onclick="closeModal('modal-cli')">Cancelar</button><button class="btn" onclick="saveCli()">Guardar</button></div>
+</div>
+</div>
+
+<!-- Importar Factura CM -->
+<div class="modal-overlay" id="modal-import-cm">
+<div class="modal modal-lg">
+  <h3>📄 Importar Factura CM al Inventario</h3>
+  <div class="fg">
+    <label>🔑 Clave API de Anthropic <span style="font-weight:400;color:var(--text-light)">(se guarda en el app)</span></label>
+    <input id="cm-api-key" type="password" placeholder="sk-ant-..." style="font-family:monospace">
+  </div>
+  <div class="fg">
+    <label>Foto / Imagen de la factura CM</label>
+    <input type="file" id="cm-foto-inp" accept="image/*" style="display:none" onchange="cmFotoLoad(event)">
+    <div id="cm-foto-area" onclick="document.getElementById('cm-foto-inp').click()" style="border:2px dashed var(--rose);border-radius:10px;padding:28px;text-align:center;cursor:pointer;background:var(--pink-light)">
+      <div style="font-size:32px;margin-bottom:6px">📷</div>
+      <div style="font-size:13px;color:var(--text-light)">Toca para seleccionar la imagen de la factura</div>
+    </div>
+    <img id="cm-foto-prev" src="" alt="" style="display:none;width:100%;max-height:220px;object-fit:contain;border-radius:10px;margin-top:8px;border:1px solid var(--pink)">
+  </div>
+  <div id="cm-status" style="display:none;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:8px"></div>
+  <div id="cm-tabla-wrap" style="display:none">
+    <div style="font-size:12px;font-weight:600;color:var(--text-light);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Productos detectados — edita si es necesario</div>
+    <div id="cm-tabla"></div>
+  </div>
+  <div class="ma">
+    <button class="btn btn-outline" onclick="closeModal('modal-import-cm')">Cancelar</button>
+    <button class="btn btn-outline" id="cm-btn-analizar" onclick="cmAnalizar()">🤖 Analizar con IA</button>
+    <button class="btn" id="cm-btn-importar" style="display:none" onclick="cmImportar()">✅ Importar al inventario</button>
+  </div>
 </div>
 </div>
 
@@ -5066,6 +5097,140 @@ function aprobarPedidoCliente(saleId){
   renderVen();renderInv();renderCli();updatePendientesBadge();
   toast('✅ Pedido aprobado e inventario actualizado');
 }
+// ============================================================
+// ================= IMPORTAR FACTURA CM ======================
+// ============================================================
+let _cmFotoB64 = null;
+let _cmFotoType = 'image/jpeg';
+let _cmItems = [];
+
+function openImportCM(){
+  _cmFotoB64 = null; _cmItems = [];
+  document.getElementById('cm-foto-inp').value = '';
+  document.getElementById('cm-foto-prev').style.display = 'none';
+  document.getElementById('cm-foto-area').style.display = 'block';
+  document.getElementById('cm-tabla-wrap').style.display = 'none';
+  document.getElementById('cm-btn-importar').style.display = 'none';
+  document.getElementById('cm-status').style.display = 'none';
+  const saved = localStorage.getItem('bwc_anthropic_key');
+  if(saved) document.getElementById('cm-api-key').value = saved;
+  openModal('modal-import-cm');
+}
+
+function cmFotoLoad(e){
+  const file = e.target.files[0]; if(!file) return;
+  _cmFotoType = file.type || 'image/jpeg';
+  const r = new FileReader();
+  r.onload = ev => {
+    const full = ev.target.result;
+    _cmFotoB64 = full.split(',')[1];
+    document.getElementById('cm-foto-prev').src = full;
+    document.getElementById('cm-foto-prev').style.display = 'block';
+    document.getElementById('cm-foto-area').style.display = 'none';
+  };
+  r.readAsDataURL(file);
+}
+
+async function cmAnalizar(){
+  const key = document.getElementById('cm-api-key').value.trim();
+  if(!key){ toast('⚠️ Ingresa tu clave API de Anthropic'); return; }
+  if(!_cmFotoB64){ toast('⚠️ Sube la foto de la factura primero'); return; }
+  localStorage.setItem('bwc_anthropic_key', key);
+  const st = document.getElementById('cm-status');
+  st.style.display = 'block';
+  st.style.background = 'var(--pink-light)';
+  st.style.color = 'var(--text)';
+  st.textContent = '🤖 Analizando factura con IA... por favor espera...';
+  document.getElementById('cm-btn-analizar').disabled = true;
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2048,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: _cmFotoType, data: _cmFotoB64 } },
+            { type: 'text', text: 'Esta es una factura de proveedor de joyería CM Chuanglida. Extrae TODOS los productos. Para cada uno devuelve un objeto JSON con estos campos exactos: nombre (string, descripción del producto), sku (string, código del producto o vacío ""), cantidad (number, unidades), costo_unitario (number, precio unitario en USD como número, sin símbolo). Responde ÚNICAMENTE con un array JSON válido, sin texto adicional, sin markdown, sin explicación. Ejemplo: [{"nombre":"Brazalete cubano","sku":"B001","cantidad":10,"costo_unitario":2.50}]' }
+          ]
+        }]
+      })
+    });
+    if(!resp.ok){ const err=await resp.text(); throw new Error(err); }
+    const data = await resp.json();
+    const txt = data.content?.[0]?.text || '';
+    const jsonStr = txt.match(/\[[\s\S]*\]/)?.[0];
+    if(!jsonStr) throw new Error('No se encontró JSON en la respuesta');
+    _cmItems = JSON.parse(jsonStr);
+    if(!_cmItems.length) throw new Error('No se detectaron productos');
+    cmRenderTabla();
+    st.style.background = '#e8f5e9';
+    st.style.color = '#2e7d32';
+    st.textContent = `✅ Se detectaron ${_cmItems.length} producto(s). Revisa y edita si es necesario.`;
+    document.getElementById('cm-btn-importar').style.display = 'inline-flex';
+  } catch(err){
+    st.style.background = '#fdecea';
+    st.style.color = '#c62828';
+    st.textContent = '❌ Error: ' + (err.message||err);
+  }
+  document.getElementById('cm-btn-analizar').disabled = false;
+}
+
+function cmRenderTabla(){
+  const wrap = document.getElementById('cm-tabla-wrap');
+  wrap.style.display = 'block';
+  document.getElementById('cm-tabla').innerHTML = `
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr style="background:var(--pink-light)">
+      <th style="padding:8px;text-align:left;border-bottom:1px solid var(--pink)">Nombre</th>
+      <th style="padding:8px;text-align:left;border-bottom:1px solid var(--pink)">SKU</th>
+      <th style="padding:8px;text-align:center;border-bottom:1px solid var(--pink)">Cant.</th>
+      <th style="padding:8px;text-align:right;border-bottom:1px solid var(--pink)">Costo unit.</th>
+    </tr></thead>
+    <tbody>
+    ${_cmItems.map((it,i)=>`<tr style="border-bottom:1px solid #F5E8EE">
+      <td style="padding:6px 8px"><input value="${it.nombre||''}" oninput="_cmItems[${i}].nombre=this.value" style="width:100%;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream)"></td>
+      <td style="padding:6px 8px"><input value="${it.sku||''}" oninput="_cmItems[${i}].sku=this.value" style="width:80px;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream);font-family:monospace"></td>
+      <td style="padding:6px 8px;text-align:center"><input type="number" value="${it.cantidad||1}" min="1" oninput="_cmItems[${i}].cantidad=+this.value" style="width:55px;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream);text-align:center"></td>
+      <td style="padding:6px 8px;text-align:right"><input type="number" value="${(it.costo_unitario||0).toFixed(2)}" min="0" step="0.01" oninput="_cmItems[${i}].costo_unitario=+this.value" style="width:70px;border:1px solid #F5E8EE;border-radius:6px;padding:4px 7px;font-size:12px;background:var(--cream);text-align:right"></td>
+    </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function cmImportar(){
+  if(!_cmItems.length){ toast('⚠️ Sin productos para importar'); return; }
+  let added=0, updated=0;
+  _cmItems.forEach(it=>{
+    if(!it.nombre) return;
+    const precio = parseFloat((it.costo_unitario*2).toFixed(2));
+    const sku = (it.sku||'CM-'+Date.now()+'-'+Math.random().toString(36).slice(2,5)).toUpperCase();
+    const existing = db.prods.find(p=>p.sku===sku);
+    if(existing){
+      existing.stock += (it.cantidad||1);
+      sbSaveProd(existing); updated++;
+    } else {
+      const p={id:'p-'+Date.now()+'-'+Math.random().toString(36).slice(2,6),
+        nombre:it.nombre, sku, categoria:'B', proveedor:'CM',
+        stock:it.cantidad||1, minStock:2,
+        costo:it.costo_unitario||0, precio,
+        foto:'', material:'Gold plated 14K', desc:''};
+      db.prods.push(p); sbSaveProd(p); added++;
+    }
+  });
+  save(); renderInv(); updateInvStats();
+  closeModal('modal-import-cm');
+  toast(`✅ ${added} productos agregados, ${updated} actualizados en inventario`);
+}
+
 function compararProveedores(){
   const provMap={};
   db.orders.forEach(o=>{
