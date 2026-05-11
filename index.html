@@ -1282,7 +1282,12 @@ async function sendOrder(){
   // Reload orders from Supabase to get fresh state
   await loadPedidos();
   // Check if clienta already has an open order - merge into it
-  const existOrd=DB.ordenes.find(o=>o.clienteKey===k&&o.estado==='abierta');
+  // Only merge into open orders - never merge into closed or lista orders
+  const existOrd=DB.ordenes.find(o=>{
+    const sameClient = o.clienteKey===k || keyOf(o.clienteNombre,o.clienteWA)===k;
+    const isOpen = o.estado==='abierta';
+    return sameClient && isOpen;
+  });
   let ord;
   if(existOrd){
     // Add new items to existing order
@@ -1297,7 +1302,13 @@ async function sendOrder(){
     ord=existOrd;
     await savePedido_DB(ord);
   } else {
-    const ordNum=DB.nextId.fact++;
+    // Get highest existing order number from DB
+    const maxNum=DB.ordenes.reduce((max,o)=>{
+      const n=parseInt((o.invNum||'').replace('BWC-','')||'0');
+      return n>max?n:max;
+    },DB.nextId.fact||1);
+    DB.nextId.fact=maxNum+1;
+    const ordNum=maxNum+1;
     ord={
       id:uid(), clienteKey:k, clienteNombre:nombre, clienteWA:wa,
       items:newItems, total, ts:Date.now(), estado:'abierta',
@@ -1490,22 +1501,37 @@ async function marcarLista(k){
 async function cobrarOrd(k){ const toUpdate=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k&&o.estado!=='cerrada'); toUpdate.forEach(o=>o.estado='cerrada'); for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); const f=DB.facturas.find(f=>f.clienteKey===k&&f.estado==='pendiente'); if(f){f.estado='pagada';} renderOrds(); updateBadges(); toast('✅ Cobrada','ok'); }
 async function elimOrd(k){ 
   if(!confirm('⚠️ ¿Eliminar esta orden completamente?'))return;
-  // Get all order IDs for this client
-  const ords=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k);
-  // Delete each order by ID from Supabase
-  for(const o of ords){
-    await sb.from('pedidos').delete().eq('id',o.id);
+  try{
+    // Find all orders for this client using multiple matching strategies
+    const ords=DB.ordenes.filter(o=>
+      o.clienteKey===k || 
+      keyOf(o.clienteNombre,o.clienteWA)===k
+    );
+    
+    // Delete each by ID
+    for(const o of ords){
+      await sb.from('pedidos').delete().eq('id',o.id);
+    }
+    
+    // Also try by cliente_key directly
+    await sb.from('pedidos').delete().eq('cliente_key',k);
+    
+    // Remove from local memory
+    DB.ordenes=DB.ordenes.filter(o=>
+      o.clienteKey!==k && 
+      keyOf(o.clienteNombre,o.clienteWA)!==k
+    ); 
+    DB.facturas=DB.facturas.filter(f=>f.clienteKey!==k);
+    
+    // Reload fresh from Supabase
+    await loadPedidos();
+    renderOrds();
+    renderDash();
+    toast('Orden eliminada ✅','ok');
+  } catch(e){
+    console.error('Error eliminando:',e);
+    toast('Error al eliminar','err');
   }
-  // Also delete by cliente_key to catch any mismatches
-  await sb.from('pedidos').delete().eq('cliente_key',k);
-  // Remove completely from local memory
-  DB.ordenes=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)!==k); 
-  DB.facturas=DB.facturas.filter(f=>f.clienteKey!==k);
-  // Reload from Supabase to confirm deletion
-  await loadPedidos();
-  renderOrds();
-  renderDash();
-  toast('Orden eliminada ✅','ok'); 
 }
 async function marcarTodasListas(){ const toUpdate=DB.ordenes.filter(o=>o.estado==='abierta'); toUpdate.forEach(o=>o.estado='lista'); for(const o of toUpdate) await updatePedidoEstado(o.id,'lista'); renderOrds(); toast('📦 Todas listas','ok'); }
 async function cobrarTodas(){ const toUpdate=DB.ordenes.filter(o=>o.estado!=='cerrada'); toUpdate.forEach(o=>o.estado='cerrada'); for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); DB.facturas.filter(f=>f.estado==='pendiente').forEach(f=>f.estado='pagada'); renderOrds(); updateBadges(); toast('✅ Todas cobradas','ok'); }
