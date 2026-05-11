@@ -622,6 +622,7 @@ textarea.f-input{min-height:72px;resize:vertical;}
     <button class="a-nav-btn active" onclick="aTab('dash',this)">🏠 Inicio</button>
     <button class="a-nav-btn" onclick="aTab('ordenes',this)">🛍 Órdenes<span class="tag tag-err" id="ordBadge" style="margin-left:6px;display:none;"></span></button>
     <button class="a-nav-btn" onclick="aTab('facturas',this)">🧾 Facturas<span class="tag tag-warn" id="factBadge" style="margin-left:6px;display:none;"></span></button>
+    <button class="a-nav-btn" onclick="aTab('historial',this)">📋 Historial</button>
     <button class="a-nav-btn" onclick="aTab('productos',this)">💎 Productos</button>
     <button class="a-nav-btn" onclick="aTab('mensajes',this)">📣 Mensajes</button>
     <button class="a-nav-btn" onclick="aTab('caja',this)">💰 Caja</button>
@@ -657,7 +658,7 @@ textarea.f-input{min-height:72px;resize:vertical;}
         <button class="fchip on" onclick="setFO('todas',this)">Todas</button>
         <button class="fchip" onclick="setFO('abiertas',this)">Abiertas 🔴</button>
         <button class="fchip" onclick="setFO('listas',this)">Listas 📦</button>
-        <button class="fchip" onclick="setFO('cerradas',this)">Cobradas ✅</button>
+  
       </div>
       <div id="ordsWrap"></div>
     </div>
@@ -711,6 +712,18 @@ textarea.f-input{min-height:72px;resize:vertical;}
         <div style="font-size:10px;color:var(--atext3);margin:5px 0 12px;">Variables: {nombre} {total} {productos}</div>
         <button class="btn btn-wa btn-full" onclick="enviarMensajes()">📲 Enviar a Seleccionadas</button>
       </div>
+    </div>
+
+    <!-- HISTORIAL -->
+    <div class="a-sec" id="asec-historial">
+      <div class="a-page-hd">
+        <div class="a-page-title">Historial de Órdenes 📋</div>
+        <button class="btn btn-ghost btn-sm" onclick="exportarExcel()">📊 Excel</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+        <input type="text" class="f-input" id="histSearch" placeholder="🔍 Buscar clienta..." style="flex:1;" oninput="renderHistorial()">
+      </div>
+      <div id="histWrap"></div>
     </div>
 
     <!-- CAJA -->
@@ -1363,12 +1376,13 @@ function aTab(name,btn){
   if(name==='mensajes') renderMensajes();
   if(name==='config'){loadCfg();renderCodigosAdmin();}
   if(name==='caja') renderCaja();
+  if(name==='historial') renderHistorial();
 }
 
 function renderAdmin(){ renderDash(); updateBadges(); }
 
 function updateBadges(){
-  const ab=DB.ordenes.filter(o=>o.estado==='abierta').length;
+  const ab=DB.ordenes.filter(o=>o.estado==='abierta'||o.estado==='lista').length;
   const ob=document.getElementById('ordBadge'); ob.textContent=ab; ob.style.display=ab?'inline-block':'none';
   const fp=DB.facturas.filter(f=>f.estado==='pendiente').length;
   const fb=document.getElementById('factBadge'); fb.textContent=fp; fb.style.display=fp?'inline-block':'none';
@@ -1376,7 +1390,7 @@ function updateBadges(){
 
 function renderDash(){
   const activos=DB.prods.filter(p=>p.estado==='activo').length;
-  const ab=DB.ordenes.filter(o=>o.estado==='abierta').length;
+  const ab=DB.ordenes.filter(o=>o.estado==='abierta'||o.estado==='lista').length;
   const total=DB.ordenes.reduce((a,o)=>a+o.total,0);
   const pend=DB.facturas.filter(f=>f.estado==='pendiente').reduce((a,f)=>a+f.total,0);
   document.getElementById('aStats').innerHTML=`
@@ -1440,10 +1454,10 @@ function groupByCli(ords){
 
 function renderOrds(){
   const q=(document.getElementById('ordSearch')?.value||'').toLowerCase();
-  let ords=[...DB.ordenes];
+  // Only show active orders (not closed) in main orders view
+  let ords=DB.ordenes.filter(o=>o.estado!=='cerrada');
   if(filtOrd==='abiertas') ords=ords.filter(o=>o.estado==='abierta');
   if(filtOrd==='listas') ords=ords.filter(o=>o.estado==='lista');
-  if(filtOrd==='cerradas') ords=ords.filter(o=>o.estado==='cerrada');
   let grps=groupByCli(ords);
   if(q) grps=grps.filter(g=>g.nombre.toLowerCase().includes(q));
   const el=document.getElementById('ordsWrap');
@@ -1466,11 +1480,11 @@ function renderOrds(){
           <tbody>${g.items.map(it=>`<tr><td>${it.prodNombre}</td><td style="text-align:center;">${it.qty}</td><td style="color:var(--atext3);">${it.nota||'—'}</td><td>${fmt(it.total)}</td></tr>`).join('')}</tbody>
         </table>
         <div class="ord-btns">
-          <button class="btn btn-rose btn-sm" onclick="showInvoice('${keyOf(g.nombre)}')">🧾 Factura</button>
+          <button class="btn btn-rose btn-sm" onclick="showInvoice('${keyOf(g.nombre,g.wa)}')">🧾 Factura</button>
           ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre)&&o.estado==='abierta')?`<button class="btn btn-warn btn-sm" onclick="marcarLista('${keyOf(g.nombre)}')">📦 Lista</button>`:''}
           ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre)&&o.estado==='lista')?`<button class="btn btn-wa btn-sm" onclick="notificarWA('${keyOf(g.nombre)}')">📲 Avisar</button>`:''}
           ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre)&&o.estado!=='cerrada')?`<button class="btn btn-ok btn-sm" onclick="cobrarOrd('${keyOf(g.nombre)}')">✅ Cobrada</button>`:''}
-          <button class="btn btn-err btn-sm" onclick="elimOrd('${keyOf(g.nombre)}')">🗑</button>
+          <button class="btn btn-err btn-sm" onclick="elimOrd('${keyOf(g.nombre,g.wa)}')">🗑</button>
         </div>
       </div>
     </div>`).join('');
@@ -1498,7 +1512,16 @@ async function marcarLista(k){
     }
   }
 }
-async function cobrarOrd(k){ const toUpdate=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k&&o.estado!=='cerrada'); toUpdate.forEach(o=>o.estado='cerrada'); for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); const f=DB.facturas.find(f=>f.clienteKey===k&&f.estado==='pendiente'); if(f){f.estado='pagada';} renderOrds(); updateBadges(); toast('✅ Cobrada','ok'); }
+async function cobrarOrd(k){ 
+  const toUpdate=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k&&o.estado!=='cerrada'); 
+  toUpdate.forEach(o=>o.estado='cerrada'); 
+  for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); 
+  const f=DB.facturas.find(f=>f.clienteKey===k&&f.estado==='pendiente'); 
+  if(f){f.estado='pagada';} 
+  renderOrds(); 
+  updateBadges(); 
+  toast('✅ Cobrada — movida al Historial','ok'); 
+}
 async function elimOrd(k){ 
   if(!confirm('⚠️ ¿Eliminar esta orden completamente?'))return;
   try{
@@ -1534,7 +1557,15 @@ async function elimOrd(k){
   }
 }
 async function marcarTodasListas(){ const toUpdate=DB.ordenes.filter(o=>o.estado==='abierta'); toUpdate.forEach(o=>o.estado='lista'); for(const o of toUpdate) await updatePedidoEstado(o.id,'lista'); renderOrds(); toast('📦 Todas listas','ok'); }
-async function cobrarTodas(){ const toUpdate=DB.ordenes.filter(o=>o.estado!=='cerrada'); toUpdate.forEach(o=>o.estado='cerrada'); for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); DB.facturas.filter(f=>f.estado==='pendiente').forEach(f=>f.estado='pagada'); renderOrds(); updateBadges(); toast('✅ Todas cobradas','ok'); }
+async function cobrarTodas(){ 
+  const toUpdate=DB.ordenes.filter(o=>o.estado!=='cerrada'); 
+  toUpdate.forEach(o=>o.estado='cerrada'); 
+  for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); 
+  DB.facturas.filter(f=>f.estado==='pendiente').forEach(f=>f.estado='pagada'); 
+  renderOrds(); 
+  updateBadges(); 
+  toast('✅ Todas cobradas — en Historial','ok'); 
+}
 function notificarWA(k){
   const ords=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k);
   if(!ords.length)return;
@@ -2386,6 +2417,48 @@ function buscarMiPedido(){
 // ══════════════════════════════
 //  CASH REGISTER
 // ══════════════════════════════
+function renderHistorial(){
+  const q=(document.getElementById('histSearch')?.value||'').toLowerCase();
+  const cerradas=DB.ordenes.filter(o=>o.estado==='cerrada');
+  const grps=groupByCli(cerradas).filter(g=>!q||g.nombre.toLowerCase().includes(q));
+  const el=document.getElementById('histWrap');
+  if(!grps.length){
+    el.innerHTML=`<div style="text-align:center;padding:40px;color:var(--atext3);">
+      <div style="font-size:40px;margin-bottom:12px;">📋</div>
+      <div>Sin órdenes cobradas aún</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML=grps.map((g,i)=>`
+    <div class="ord-card">
+      <div class="ord-hd" onclick="toggleOB('hob${i}')">
+        <div class="ord-av">${g.nombre[0].toUpperCase()}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="ord-name">${g.nombre}</div>
+          <div class="ord-meta">${g.items.length} artículo(s) · ${g.wa||'Sin WA'}</div>
+          <div style="margin-top:3px;"><span class="tag tag-ok">✅ Cobrada</span></div>
+        </div>
+        <div class="ord-right">
+          <div class="ord-total">${fmt(g.total)}</div>
+          <div style="font-size:9px;color:var(--atext3);">▼</div>
+        </div>
+      </div>
+      <div class="ord-body" id="hob${i}">
+        ${DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre,g.wa)&&o.estado==='cerrada').map(o=>`
+          <div style="font-size:10px;color:var(--rose2);margin-bottom:4px;font-weight:600;">${o.numOrden||o.invNum} · ${fmtD(o.ts)}</div>
+          <table class="ord-tbl" style="margin-bottom:10px;">
+            <thead><tr><th>Producto</th><th>×</th><th>Total</th></tr></thead>
+            <tbody>${o.items.map(it=>`<tr><td>${it.prodNombre}</td><td style="text-align:center;">${it.qty}</td><td>${fmt(it.total)}</td></tr>`).join('')}</tbody>
+          </table>`).join('')}
+        <div class="ord-btns">
+          <button class="btn btn-rose btn-sm" onclick="showInvoice('${keyOf(g.nombre,g.wa)}')">🧾 Factura</button>
+          <button class="btn btn-ghost btn-sm" onclick="verHistorial('${keyOf(g.nombre,g.wa)}')">📋 Ver todo</button>
+          <button class="btn btn-err btn-sm" onclick="elimOrd('${keyOf(g.nombre,g.wa)}')">🗑 Eliminar</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
 function renderCaja(){
   if(!DB.movimientos) DB.movimientos=[];
   const hoy=new Date().toISOString().split('T')[0];
