@@ -1481,9 +1481,11 @@ function renderOrds(){
         </table>
         <div class="ord-btns">
           <button class="btn btn-rose btn-sm" onclick="showInvoice('${keyOf(g.nombre,g.wa)}')">🧾 Factura</button>
-          ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre)&&o.estado==='abierta')?`<button class="btn btn-warn btn-sm" onclick="marcarLista('${keyOf(g.nombre)}')">📦 Lista</button>`:''}
-          ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre)&&o.estado==='lista')?`<button class="btn btn-wa btn-sm" onclick="notificarWA('${keyOf(g.nombre)}')">📲 Avisar</button>`:''}
-          ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre)&&o.estado!=='cerrada')?`<button class="btn btn-ok btn-sm" onclick="cobrarOrd('${keyOf(g.nombre)}')">✅ Cobrada</button>`:''}
+          ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre,g.wa)&&o.estado==='abierta')?`<button class="btn btn-warn btn-sm" onclick="marcarLista('${keyOf(g.nombre,g.wa)}')">📦 Lista</button>`:''}
+          ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre,g.wa)&&o.estado==='lista')?`<button class="btn btn-wa btn-sm" onclick="notificarWA('${keyOf(g.nombre,g.wa)}')">📲 Avisar</button>`:''}
+          <button class="btn btn-ok btn-sm" onclick="cobrarOrd('${keyOf(g.nombre,g.wa)}')">✅ Cobrar</button>
+          <button class="btn btn-ghost btn-sm" onclick="verHistorial('${keyOf(g.nombre,g.wa)}')">📋 Historial</button>
+          <button class="btn btn-ghost btn-sm" onclick="notaInterna('${keyOf(g.nombre,g.wa)}','${g.nombre}')">📝 Nota</button>
           <button class="btn btn-err btn-sm" onclick="elimOrd('${keyOf(g.nombre,g.wa)}')">🗑</button>
         </div>
       </div>
