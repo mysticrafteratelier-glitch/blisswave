@@ -887,9 +887,7 @@ async function loadProds(){
     foto2:p.foto2||'', foto3:p.foto3||'', foto4:p.foto4||'',
     destacado:p.destacado||false
   }));
-  // Only load demo if truly empty (no products ever added)
-  if(!DB.prods.length && !localStorage.getItem('bwc_had_prods')) await loadDemo();
-  if(DB.prods.length) localStorage.setItem('bwc_had_prods','1');
+  // Never auto-load demos - user manages their own products
 }
 
 async function loadPedidos(){
@@ -973,22 +971,7 @@ async function updatePedidoEstado(id,estado){
 // Compatibility shim
 function save(){ saveLocal(); }
 function load(){ loadLocal(); }
-async function loadDemo(){
-  // Check if we already have products in Supabase
-  const {data} = await sb.from('productos').select('id').limit(1);
-  if(data && data.length > 0) return; // Already has products, don't overwrite
-  DB.prods=[
-    {id:'P1',nombre:'Collar Corazón Eterno',cat:'Collares',precio:28.99,stock:8,badge:'Más Vendido',desc:'Delicado collar con dije de corazón en oro laminado 14k. Cadena ajustable de 45cm.',tags:'Oro 14k,45cm,Ajustable',estado:'activo',img:''},
-    {id:'P2',nombre:'Pulsera Infinito',cat:'Pulseras',precio:22.99,stock:12,badge:'',desc:'Elegante pulsera con símbolo del infinito en oro laminado 14k.',tags:'Oro 14k,18cm,Ajustable',estado:'activo',img:''},
-    {id:'P3',nombre:'Aretes Argolla Clásica',cat:'Aretes',precio:18.99,stock:15,badge:'Nuevo',desc:'Argollas en oro laminado 14k. Tamaño mediano, ideales para el día a día.',tags:'Oro 14k,3cm,Cierre seguro',estado:'activo',img:''},
-    {id:'P4',nombre:'Anillo Solitario Cristal',cat:'Anillos',precio:24.99,stock:6,badge:'',desc:'Anillo con cristal central en baño de oro 14k.',tags:'Oro 14k,Cristal AAA,Tallas 5-10',estado:'activo',img:''},
-    {id:'P5',nombre:'Tobillera Delicada',cat:'Tobilleras',precio:16.99,stock:14,badge:'Nuevo',desc:'Tobillera fina con cristales en oro laminado 14k.',tags:'Oro 14k,Ajustable',estado:'activo',img:''},
-    {id:'P6',nombre:'Set Novia Completo',cat:'Sets',precio:69.99,stock:5,badge:'Oferta',desc:'Set: collar, aretes y pulsera. Caja regalo.',tags:'Oro 14k,3 piezas,Caja regalo',estado:'activo',img:''},
-  ];
-  DB.nextId.prod=7;
-  // Save demo products to Supabase
-  for(const p of DB.prods) await saveProd_DB(p);
-}
+
 
 // ══════════════════════════════
 //  UTILS
@@ -1030,6 +1013,13 @@ async function init(){
   try{
     await loadProds();
     await loadPedidos();
+    // Clean up any demo products (P1-P8) that were auto-created
+    const demoIds=['P1','P2','P3','P4','P5','P6','P7','P8'];
+    const demoProds=DB.prods.filter(p=>demoIds.includes(p.id));
+    for(const p of demoProds){
+      await sb.from('productos').delete().eq('id',p.id);
+      DB.prods=DB.prods.filter(x=>x.id!==p.id);
+    }
   }catch(e){ console.error('Load error:',e); }
   const p=new URLSearchParams(location.search);
   if(p.get('v')==='admin'){ isLogged()?showAdmin():showLogin(); return; }
