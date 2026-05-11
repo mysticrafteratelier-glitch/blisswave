@@ -1494,7 +1494,21 @@ async function marcarLista(k){
   }
 }
 async function cobrarOrd(k){ const toUpdate=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k&&o.estado!=='cerrada'); toUpdate.forEach(o=>o.estado='cerrada'); for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); const f=DB.facturas.find(f=>f.clienteKey===k&&f.estado==='pendiente'); if(f){f.estado='pagada';} renderOrds(); updateBadges(); toast('✅ Cobrada','ok'); }
-function elimOrd(k){ if(!confirm('¿Eliminar?'))return; DB.ordenes=DB.ordenes.filter(o=>keyOf(o.clienteNombre)!==k); DB.facturas=DB.facturas.filter(f=>f.clienteKey!==k); save(); renderOrds(); toast('Eliminado'); }
+async function elimOrd(k){ 
+  if(!confirm('¿Eliminar esta orden completamente?'))return;
+  // Delete from Supabase first
+  const ords=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k);
+  for(const o of ords){
+    const {error}=await sb.from('pedidos').delete().eq('id',o.id);
+    if(error) console.error('Error deleting:',error);
+  }
+  // Remove from local memory
+  DB.ordenes=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)!==k); 
+  DB.facturas=DB.facturas.filter(f=>f.clienteKey!==k);
+  renderOrds();
+  renderDash();
+  toast('Orden eliminada ✅','ok'); 
+}
 async function marcarTodasListas(){ const toUpdate=DB.ordenes.filter(o=>o.estado==='abierta'); toUpdate.forEach(o=>o.estado='lista'); for(const o of toUpdate) await updatePedidoEstado(o.id,'lista'); renderOrds(); toast('📦 Todas listas','ok'); }
 async function cobrarTodas(){ const toUpdate=DB.ordenes.filter(o=>o.estado!=='cerrada'); toUpdate.forEach(o=>o.estado='cerrada'); for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); DB.facturas.filter(f=>f.estado==='pendiente').forEach(f=>f.estado='pagada'); renderOrds(); updateBadges(); toast('✅ Todas cobradas','ok'); }
 function notificarWA(k){
