@@ -1013,13 +1013,7 @@ async function init(){
   try{
     await loadProds();
     await loadPedidos();
-    // Clean up any demo products (P1-P8) that were auto-created
-    const demoIds=['P1','P2','P3','P4','P5','P6','P7','P8'];
-    const demoProds=DB.prods.filter(p=>demoIds.includes(p.id));
-    for(const p of demoProds){
-      await sb.from('productos').delete().eq('id',p.id);
-      DB.prods=DB.prods.filter(x=>x.id!==p.id);
-    }
+
   }catch(e){ console.error('Load error:',e); }
   const p=new URLSearchParams(location.search);
   if(p.get('v')==='admin'){ isLogged()?showAdmin():showLogin(); return; }
@@ -1495,16 +1489,20 @@ async function marcarLista(k){
 }
 async function cobrarOrd(k){ const toUpdate=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k&&o.estado!=='cerrada'); toUpdate.forEach(o=>o.estado='cerrada'); for(const o of toUpdate) await updatePedidoEstado(o.id,'cerrada'); const f=DB.facturas.find(f=>f.clienteKey===k&&f.estado==='pendiente'); if(f){f.estado='pagada';} renderOrds(); updateBadges(); toast('✅ Cobrada','ok'); }
 async function elimOrd(k){ 
-  if(!confirm('¿Eliminar esta orden completamente?'))return;
-  // Delete from Supabase first
+  if(!confirm('⚠️ ¿Eliminar esta orden completamente?'))return;
+  // Get all order IDs for this client
   const ords=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k);
+  // Delete each order by ID from Supabase
   for(const o of ords){
-    const {error}=await sb.from('pedidos').delete().eq('id',o.id);
-    if(error) console.error('Error deleting:',error);
+    await sb.from('pedidos').delete().eq('id',o.id);
   }
-  // Remove from local memory
+  // Also delete by cliente_key to catch any mismatches
+  await sb.from('pedidos').delete().eq('cliente_key',k);
+  // Remove completely from local memory
   DB.ordenes=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)!==k); 
   DB.facturas=DB.facturas.filter(f=>f.clienteKey!==k);
+  // Reload from Supabase to confirm deletion
+  await loadPedidos();
   renderOrds();
   renderDash();
   toast('Orden eliminada ✅','ok'); 
