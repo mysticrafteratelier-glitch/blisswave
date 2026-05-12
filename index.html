@@ -1475,10 +1475,18 @@ function renderOrds(){
         <div class="ord-right"><div class="ord-total">${fmt(g.total)}</div><div style="font-size:9px;color:var(--atext3);">▼</div></div>
       </div>
       <div class="ord-body" id="ob${i}">
-        <table class="ord-tbl">
-          <thead><tr><th>Producto</th><th>×</th><th>Nota</th><th>Total</th></tr></thead>
-          <tbody>${g.items.map(it=>`<tr><td>${it.prodNombre}</td><td style="text-align:center;">${it.qty}</td><td style="color:var(--atext3);">${it.nota||'—'}</td><td>${fmt(it.total)}</td></tr>`).join('')}</tbody>
-        </table>
+        ${DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre,g.wa)).map((o,oi)=>`
+          <div style="font-size:10px;color:var(--rose2);margin-bottom:4px;font-weight:600;">${o.numOrden||o.invNum}</div>
+          <table class="ord-tbl" style="margin-bottom:8px;">
+            <thead><tr><th>Producto</th><th>Cant</th><th>Nota</th><th>Total</th><th></th></tr></thead>
+            <tbody>${o.items.map((it,idx)=>`<tr>
+              <td>${it.prodNombre}</td>
+              <td style="text-align:center;">${it.qty}</td>
+              <td style="color:var(--atext3);font-size:11px;">${it.nota||'—'}</td>
+              <td>${fmt(it.total)}</td>
+              <td><button onclick="elimItemOrden('${o.id}',${idx})" style="background:rgba(192,80,80,.12);border:1px solid rgba(192,80,80,.25);color:#E08080;cursor:pointer;border-radius:4px;padding:2px 7px;font-size:11px;">✕</button></td>
+            </tr>`).join('')}</tbody>
+          </table>`).join('')}
         <div class="ord-btns">
           <button class="btn btn-rose btn-sm" onclick="showInvoice('${keyOf(g.nombre,g.wa)}')">🧾 Factura</button>
           ${DB.ordenes.find(o=>keyOf(o.clienteNombre,o.clienteWA)===keyOf(g.nombre,g.wa)&&o.estado==='abierta')?`<button class="btn btn-warn btn-sm" onclick="marcarLista('${keyOf(g.nombre,g.wa)}')">📦 Lista</button>`:''}
