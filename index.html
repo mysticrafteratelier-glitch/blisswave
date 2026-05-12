@@ -1504,14 +1504,34 @@ function renderOrds(){
 function toggleOB(id){ document.getElementById(id).classList.toggle('open'); }
 
 async function elimItemOrden(ordId, itemIdx){
-  if(!confirm('¿Eliminar este producto de la orden?')) return;
   const ord=DB.ordenes.find(o=>o.id===ordId);
   if(!ord) return;
   const item=ord.items[itemIdx];
   if(!item) return;
+
+  // Ask how many to remove if qty > 1
+  let cantElim=item.qty;
+  if(item.qty>1){
+    const resp=prompt(`¿Cuántas unidades quieres eliminar?\n"${item.prodNombre}" tiene ${item.qty} unidades en la orden.\n\nEscribe la cantidad (1 a ${item.qty}):`, '1');
+    if(resp===null) return; // cancelled
+    cantElim=parseInt(resp)||1;
+    if(cantElim<1) cantElim=1;
+    if(cantElim>item.qty) cantElim=item.qty;
+  } else {
+    if(!confirm(`¿Eliminar "${item.prodNombre}" de la orden?`)) return;
+  }
+
+  // Update item quantity or remove completely
+  if(cantElim>=item.qty){
+    // Remove item completely
+    ord.items.splice(itemIdx,1);
+  } else {
+    // Reduce quantity
+    ord.items[itemIdx].qty-=cantElim;
+    ord.items[itemIdx].total=ord.items[itemIdx].precio*ord.items[itemIdx].qty;
+  }
   
-  // Remove item and recalculate total
-  ord.items.splice(itemIdx,1);
+  // Recalculate order total
   ord.total=ord.items.reduce((a,it)=>a+it.total,0);
   
   // If no items left, delete the whole order
@@ -1519,15 +1539,14 @@ async function elimItemOrden(ordId, itemIdx){
     await sb.from('pedidos').delete().eq('id',ordId);
     DB.ordenes=DB.ordenes.filter(o=>o.id!==ordId);
   } else {
-    // Save updated order to Supabase
     await sb.from('pedidos').update({items:ord.items, total:ord.total}).eq('id',ordId);
   }
   
-  // Restore stock for removed item
+  // Restore stock for removed units
   if(item.prodId){
     const prod=DB.prods.find(p=>p.id===item.prodId);
     if(prod){
-      prod.stock+=item.qty;
+      prod.stock+=cantElim;
       if(prod.estado==='agotado') prod.estado='activo';
       await saveProd_DB(prod);
     }
@@ -1541,7 +1560,7 @@ async function elimItemOrden(ordId, itemIdx){
   await loadPedidos();
   renderOrds();
   renderDash();
-  toast('Producto eliminado de la orden ✅','ok');
+  toast(`${cantElim} unidad(es) eliminada(s) de la orden ✅`,'ok');
 }
 
 
