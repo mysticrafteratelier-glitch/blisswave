@@ -1495,6 +1495,92 @@ function renderOrds(){
 
 function toggleOB(id){ document.getElementById(id).classList.toggle('open'); }
 
+async function elimItemOrden(ordId, itemIdx){
+  if(!confirm('¿Eliminar este producto de la orden?')) return;
+  const ord=DB.ordenes.find(o=>o.id===ordId);
+  if(!ord) return;
+  const item=ord.items[itemIdx];
+  if(!item) return;
+  
+  // Remove item and recalculate total
+  ord.items.splice(itemIdx,1);
+  ord.total=ord.items.reduce((a,it)=>a+it.total,0);
+  
+  // If no items left, delete the whole order
+  if(!ord.items.length){
+    await sb.from('pedidos').delete().eq('id',ordId);
+    DB.ordenes=DB.ordenes.filter(o=>o.id!==ordId);
+  } else {
+    // Save updated order to Supabase
+    await sb.from('pedidos').update({items:ord.items, total:ord.total}).eq('id',ordId);
+  }
+  
+  // Restore stock for removed item
+  if(item.prodId){
+    const prod=DB.prods.find(p=>p.id===item.prodId);
+    if(prod){
+      prod.stock+=item.qty;
+      if(prod.estado==='agotado') prod.estado='activo';
+      await saveProd_DB(prod);
+    }
+  }
+  
+  // Update facturas totals
+  const k=ord.clienteKey;
+  const fact=DB.facturas.find(f=>f.clienteKey===k);
+  if(fact) fact.total=DB.ordenes.filter(o=>o.clienteKey===k).reduce((a,o)=>a+o.total,0);
+  
+  await loadPedidos();
+  renderOrds();
+  renderDash();
+  toast('Producto eliminado de la orden ✅','ok');
+}
+
+async function elimItemOrden(ordId, itemId){
+  if(!confirm('¿Eliminar este producto de la orden?')) return;
+  
+  // Find the order
+  const ord = DB.ordenes.find(o=>o.id===ordId);
+  if(!ord) return;
+  
+  // Find and remove the item
+  const item = ord.items.find(it=>it.id===itemId);
+  if(!item) return;
+  
+  // Restore stock in Supabase
+  const prod = DB.prods.find(p=>p.id===item.prodId);
+  if(prod){
+    const newStock = prod.stock + item.qty;
+    prod.stock = newStock;
+    if(prod.estado==='agotado' && newStock>0) prod.estado='activo';
+    await sb.from('productos').update({stock:newStock, estado:prod.estado}).eq('id',prod.id);
+  }
+  
+  // Remove item from order
+  ord.items = ord.items.filter(it=>it.id!==itemId);
+  ord.total = ord.items.reduce((a,it)=>a+it.total, 0);
+  
+  // If no items left, delete the whole order
+  if(ord.items.length===0){
+    await sb.from('pedidos').delete().eq('id',ordId);
+    DB.ordenes = DB.ordenes.filter(o=>o.id!==ordId);
+    toast('Orden vacía eliminada','ok');
+  } else {
+    // Update order in Supabase
+    await savePedido_DB(ord);
+    toast('Producto eliminado de la orden ✅','ok');
+  }
+  
+  // Update factura total
+  const k = ord.clienteKey;
+  const f = DB.facturas.find(f=>f.clienteKey===k);
+  if(f) f.total = DB.ordenes.filter(o=>o.clienteKey===k).reduce((a,o)=>a+o.total,0);
+  
+  renderOrds();
+  renderDash();
+  renderSGrid();
+}
+
 async function marcarLista(k){ 
   const toUpdate=DB.ordenes.filter(o=>keyOf(o.clienteNombre,o.clienteWA)===k&&o.estado==='abierta'); 
   toUpdate.forEach(o=>o.estado='lista'); 
