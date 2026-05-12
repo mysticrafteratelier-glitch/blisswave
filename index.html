@@ -992,7 +992,7 @@ function load(){ loadLocal(); }
 const fmt=n=>'$'+(n||0).toFixed(2);
 const fmtD=ts=>new Date(ts).toLocaleDateString('es-US',{day:'2-digit',month:'short',year:'numeric'});
 const uid=()=>'ID'+Date.now().toString(36)+Math.random().toString(36).slice(2,5);
-const keyOf=(n,wa)=>(n||'').toLowerCase().trim()+(wa?('+'+wa.replace(/\D/g,'')):'')
+const keyOf=(n,wa)=>(n||'').toLowerCase().trim()
 
 function toast(msg,type=''){
   const el=document.createElement('div');
@@ -1230,7 +1230,7 @@ function addToCart(p,qty,talla){
     if(disponible<=0){toast('No hay más de esa talla','err');return;}
     const addQty=Math.min(qty,disponible);
     const ex=sCart.find(i=>i.id===p.id&&i.talla===talla);
-    if(ex) ex.qty+=addQty; else sCart.push({...fresh,qty:addQty,talla});
+    if(ex) ex.qty+=addQty; else sCart.push({...fresh,qty:addQty,talla,img:fresh.img});
   } else {
     if(fresh.stock<=0){toast('Producto agotado ❌','err');renderSGrid();return;}
     const inCart=sCart.find(i=>i.id===p.id&&!i.talla)?.qty||0;
@@ -1238,7 +1238,7 @@ function addToCart(p,qty,talla){
     if(disponible<=0){toast('No hay más disponibles','err');return;}
     const addQty=Math.min(qty,disponible);
     const ex=sCart.find(i=>i.id===p.id&&!i.talla);
-    if(ex) ex.qty+=addQty; else sCart.push({...fresh,qty:addQty});
+    if(ex) ex.qty+=addQty; else sCart.push({...fresh,qty:addQty,img:fresh.img});
   }
   updateCart(); toast(p.nombre+(talla?' talla '+talla:'')+' agregado 💕');
 }
@@ -1637,7 +1637,7 @@ function showInvoice(k){
   // Build product rows with images
   const prodRows=items.map(it=>{
     const prod=DB.prods.find(p=>p.id===it.prodId);
-    const img=prod?.img||(CAT_IMGS[it.cat]||'');
+    const img=prod?.img||it.img||(CAT_IMGS[it.cat]||'');
     return `<div class="inv-prod-row">
       <div class="inv-prod-img">${img?`<img src="${img}" onerror="this.outerHTML='💎'">`:'💎'}</div>
       <div class="inv-prod-info">
