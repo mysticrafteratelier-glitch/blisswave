@@ -505,7 +505,8 @@ textarea.f-input{min-height:70px;resize:vertical;}
         <button class="fchip on" onclick="setFO('todas',this)">Todas</button>
         <button class="fchip" onclick="setFO('abiertas',this)">Abiertas 🔴</button>
         <button class="fchip" onclick="setFO('listas',this)">Listas 📦</button>
-        <button class="fchip" onclick="setFO('cerradas',this)">Cobradas ✅</button>
+        <button class="fchip" onclick="setFO('por_cobrar',this)">Por Cobrar 💰<span class="tag tag-warn" id="porCobrarBadge" style="margin-left:4px;display:none;"></span></button>
+        <button class="fchip" onclick="setFO('cerradas',this)">Pagadas ✅</button>
       </div>
       <div id="ordsWrap"></div>
     </div>
@@ -1046,6 +1047,9 @@ function renderAdmin(){renderDash();}
 function updateBadges(){
   const ab=DB.ordenes.filter(o=>o.estado==='abierta').length;
   const b=document.getElementById('ordBadge');b.textContent=ab;b.style.display=ab?'inline-block':'none';
+  const pc=DB.ordenes.filter(o=>o.estado==='por_cobrar').length;
+  const pcB=document.getElementById('porCobrarBadge');
+  if(pcB){pcB.textContent=pc;pcB.style.display=pc?'inline-block':'none';}
 }
 
 function groupByCli(ords){
@@ -1067,7 +1071,7 @@ function renderDash(){
   const activos=DB.prods.filter(p=>p.estado==='activo').length;
   const ab=DB.ordenes.filter(o=>o.estado==='abierta').length;
   const totalVend=DB.ordenes.filter(o=>o.estado==='cerrada').reduce((a,o)=>a+o.total,0);
-  const porCobrar=DB.ordenes.filter(o=>o.estado!=='cerrada').reduce((a,o)=>a+o.total,0);
+  const porCobrar=DB.ordenes.filter(o=>o.estado==='por_cobrar').reduce((a,o)=>a+o.total,0);
   document.getElementById('aStats').innerHTML=`
     <div class="a-stat"><div class="a-stat-val">${DB.prods.length}</div><div class="a-stat-lbl">Productos</div></div>
     <div class="a-stat"><div class="a-stat-val" style="color:var(--err);">${ab}</div><div class="a-stat-lbl">Abiertas</div></div>
@@ -1091,12 +1095,13 @@ function renderOrds(){
   let grps=groupByCli(DB.ordenes);
   if(filtOrd==='abiertas') grps=grps.map(g=>({...g,ords:g.ords.filter(o=>o.estado==='abierta')})).filter(g=>g.ords.length);
   if(filtOrd==='listas') grps=grps.map(g=>({...g,ords:g.ords.filter(o=>o.estado==='lista')})).filter(g=>g.ords.length);
+  if(filtOrd==='por_cobrar') grps=grps.map(g=>({...g,ords:g.ords.filter(o=>o.estado==='por_cobrar')})).filter(g=>g.ords.length);
   if(filtOrd==='cerradas') grps=grps.map(g=>({...g,ords:g.ords.filter(o=>o.estado==='cerrada')})).filter(g=>g.ords.length);
   if(q) grps=grps.filter(g=>g.nombre.toLowerCase().includes(q)||(g.wa||'').includes(q));
   const el=document.getElementById('ordsWrap');
   if(!grps.length){el.innerHTML=`<div style="color:var(--atext3);font-size:13px;padding:20px;text-align:center;">Sin órdenes</div>`;return;}
   el.innerHTML=grps.map((g,gi)=>{
-    const estado=g.ords.some(o=>o.estado==='abierta')?'abierta':g.ords.some(o=>o.estado==='lista')?'lista':'cerrada';
+    const estado=g.ords.some(o=>o.estado==='abierta')?'abierta':g.ords.some(o=>o.estado==='lista')?'lista':g.ords.some(o=>o.estado==='por_cobrar')?'por_cobrar':'cerrada';
     const nums=g.ords.map(o=>o.numOrden||'').filter(Boolean).join(' · ');
     return `<div class="ord-card">
       <div class="ord-hd" onclick="document.getElementById('ob${gi}').classList.toggle('open')">
@@ -1105,14 +1110,14 @@ function renderOrds(){
           <div class="ord-name">${g.nombre}</div>
           <div class="ord-meta">${g.ords.reduce((a,o)=>a+o.items.length,0)} artículo(s) · ${g.wa||'Sin WA'}</div>
           <div class="ord-num">${nums}</div>
-          <div style="margin-top:3px;"><span class="tag tag-${estado==='abierta'?'err':estado==='lista'?'rose':'ok'}">${estado}</span></div>
+          <div style="margin-top:3px;"><span class="tag tag-${estado==='abierta'?'err':estado==='lista'?'rose':estado==='por_cobrar'?'warn':'ok'}">${estado==='por_cobrar'?'Por Cobrar 💰':estado}</span></div>
         </div>
         <div class="ord-right"><div class="ord-total">${fmt(g.total)}</div></div>
       </div>
       <div class="ord-body" id="ob${gi}">
         <div class="ord-items">
           ${g.ords.map(o=>`
-            <div style="font-size:10px;color:var(--rose2);margin:8px 0 4px;font-weight:600;">${o.numOrden||''} · ${fmtD(o.ts)} · <span class="tag tag-${o.estado==='abierta'?'err':o.estado==='lista'?'rose':'ok'}">${o.estado}</span></div>
+            <div style="font-size:10px;color:var(--rose2);margin:8px 0 4px;font-weight:600;">${o.numOrden||''} · ${fmtD(o.ts)} · <span class="tag tag-${o.estado==='abierta'?'err':o.estado==='lista'?'rose':o.estado==='por_cobrar'?'warn':'ok'}">${o.estado==='por_cobrar'?'Por Cobrar 💰':o.estado}</span></div>
             ${o.items.map((it,idx)=>`
               <div class="ord-item">
                 <div class="ord-item-img">${it.img?`<img src="${it.img}" onerror="this.outerHTML='💎'">`:'💎'}</div>
@@ -1128,7 +1133,8 @@ function renderOrds(){
         <div class="ord-btns">
           <button class="btn btn-rose btn-sm" onclick="showInvoice('${g.key}')">🧾 Factura</button>
           ${g.ords.some(o=>o.estado==='abierta')?`<button class="btn btn-warn btn-sm" onclick="marcarLista('${g.key}')">📦 Lista</button>`:''}
-          <button class="btn btn-ok btn-sm" onclick="cobrarOrd('${g.key}')">✅ Cobrar</button>
+          ${g.ords.some(o=>o.estado!=='cerrada'&&o.estado!=='por_cobrar')?`<button class="btn btn-ok btn-sm" onclick="cobrarOrd('${g.key}')">💰 Por Cobrar</button>`:''}
+          ${g.ords.some(o=>o.estado==='por_cobrar')?`<button class="btn btn-ok btn-sm" onclick="marcarPagada('${g.key}')" style="background:var(--ok);color:#fff;">✅ Ya Pagó</button>`:''}
           ${g.wa?`<button class="btn btn-wa btn-sm" onclick="notificarWA('${g.key}')">📲 Avisar</button>`:''}
           <button class="btn btn-err btn-sm" onclick="elimOrd('${g.key}')">🗑 Eliminar</button>
         </div>
@@ -1182,9 +1188,15 @@ async function marcarLista(k){
 }
 
 async function cobrarOrd(k){
-  const ords=DB.ordenes.filter(o=>o.clienteKey===k&&o.estado!=='cerrada');
+  const ords=DB.ordenes.filter(o=>o.clienteKey===k&&o.estado!=='cerrada'&&o.estado!=='por_cobrar');
+  for(const o of ords){o.estado='por_cobrar';await sb.from('pedidos').update({estado:'por_cobrar'}).eq('id',o.id);}
+  renderOrds();renderDash();toast('💰 Movida a Por Cobrar','ok');
+}
+
+async function marcarPagada(k){
+  const ords=DB.ordenes.filter(o=>o.clienteKey===k&&o.estado==='por_cobrar');
   for(const o of ords){o.estado='cerrada';await sb.from('pedidos').update({estado:'cerrada'}).eq('id',o.id);}
-  renderOrds();renderDash();toast('✅ Cobrada','ok');
+  renderOrds();renderDash();toast('✅ Pagada y cerrada','ok');
 }
 
 async function elimOrd(k){
