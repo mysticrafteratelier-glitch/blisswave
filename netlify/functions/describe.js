@@ -60,7 +60,7 @@ exports.handler = async (event) => {
 ${tipoConocido}
 
 Reglas:
-- "name": un nombre corto y atractivo en español para la pieza (ej. "Anillo Corazón Dorado", "Pulsera Tejido Fino"). Máximo 5 palabras. No inventes marca.
+- "name": un nombre corto y atractivo en español para la pieza. Máximo 5 palabras. INCLUYE la figura o motivo principal si se ve claramente (por ejemplo: mariposa, corazón, flor, estrella, cruz, infinito, trébol, ojo, luna, serpiente, lazo, hoja, etc.). Ejemplos: "Anillo Mariposa Brillante", "Dije Corazón Cristal", "Aretes Flor Dorados". No inventes marca.
 - "description": 2 a 4 frases en español, atractivas para vender, describiendo tipo de pieza, color, piedras/cristales si los hay, estilo y ocasión. Menciona que es oro laminado 14k. No inventes medidas exactas ni precios.
 - Las piedras/cristales son zirconias o cristales (NO digas que son diamantes, esmeraldas ni piedras preciosas reales).
 ${pideCategoria}`;
