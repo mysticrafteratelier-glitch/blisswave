@@ -22,28 +22,37 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'Falta OPENAI_API_KEY' }) };
   }
 
-  let imageUrl, imageBase64;
+  let imageUrl, imageBase64, category;
   try {
     const body = JSON.parse(event.body || '{}');
-    imageUrl = body.imageUrl;
-    imageBase64 = body.imageBase64;
+    imageUrl = body.imageUrl;        // si la foto ya está subida (tiene URL)
+    imageBase64 = body.imageBase64;  // o si llega como base64
+    category = (body.category || '').trim();  // categoría que la dueña ya eligió (opcional)
   } catch (e) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Body inválido' }) };
-  }
-
-  if (!imageUrl && !imageBase64) {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Falta la imagen' }) };
   }
 
   const imageContent = imageUrl
     ? { type: 'image_url', image_url: { url: imageUrl } }
     : { type: 'image_url', image_url: { url: imageBase64 } };
 
+  if (!imageUrl && !imageBase64) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Falta la imagen' }) };
+  }
+
+  const tipoConocido = category
+    ? `IMPORTANTE: Esta pieza ES un/una "${category}". Esto es un dato CONFIRMADO por la dueña, NO lo cambies ni lo contradigas. El nombre y la descripción DEBEN tratarla como "${category}". Por ejemplo, si la categoría es "Dije", nunca digas "aretes" ni "anillo": es un dije/colgante.`
+    : `No se indicó la categoría. Mira bien la foto para identificar el tipo de pieza. Si NO estás totalmente segura del tipo (por ejemplo, podría ser dije, arete o colgante), usa una palabra neutral como "pieza" o "joya" en el nombre, en vez de adivinar y arriesgarte a equivocarte. Es mejor un nombre neutral correcto que uno específico equivocado.`;
+
   const prompt = `Eres asistente de una tienda de joyería de oro laminado 14k (BlissWave). Mira la foto de la pieza y responde SOLO un JSON, sin texto extra, con este formato exacto:
 {"name":"...","description":"..."}
+
+${tipoConocido}
+
 Reglas:
 - "name": un nombre corto y atractivo en español para la pieza (ej. "Anillo Corazón Dorado", "Pulsera Tejido Fino"). Máximo 5 palabras. No inventes marca.
-- "description": 2 a 4 frases en español, atractivas para vender, describiendo tipo de pieza, color, piedras/cristales si los hay, estilo y ocasión. Menciona que es oro laminado 14k. No inventes medidas exactas ni precios.`;
+- "description": 2 a 4 frases en español, atractivas para vender, describiendo tipo de pieza, color, piedras/cristales si los hay, estilo y ocasión. Menciona que es oro laminado 14k. No inventes medidas exactas ni precios.
+- Las piedras/cristales son zirconias o cristales (NO digas que son diamantes, esmeraldas ni piedras preciosas reales).`;
 
   try {
     const resp = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -79,6 +88,7 @@ Reglas:
     try {
       parsed = JSON.parse(text);
     } catch (e) {
+      // Si no vino JSON limpio, devolvemos el texto como descripción
       parsed = { name: '', description: text };
     }
 
@@ -91,4 +101,3 @@ Reglas:
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: String(err) }) };
   }
 };
-
