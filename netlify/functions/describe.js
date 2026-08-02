@@ -1,12 +1,13 @@
 // netlify/functions/describe.js
-// 🌸 BlissWave — Nombrado de joyería con IA (versión Gemini)
+// 🌸 BlissWave — Nombrado de joyería con IA (Gemini v2)
 // Requiere la variable de entorno: GEMINI_API_KEY
 // Responde: { name, description, category }
+// GET = modo diagnóstico (abrir en Safari para verificar)
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Content-Type': 'application/json'
 };
 
@@ -16,6 +17,21 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: CORS, body: '' };
   }
+
+  // ── MODO DIAGNÓSTICO: abrir la URL en Safari ──
+  if (event.httpMethod === 'GET') {
+    return {
+      statusCode: 200,
+      headers: CORS,
+      body: JSON.stringify({
+        ok: true,
+        version: 'gemini-v2',
+        modelo: GEMINI_MODEL,
+        tieneKey: !!process.env.GEMINI_API_KEY
+      })
+    };
+  }
+
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
@@ -98,8 +114,9 @@ exports.handler = async (event) => {
         }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 400,
-          responseMimeType: 'application/json'
+          maxOutputTokens: 2000,
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingBudget: 0 }
         }
       })
     });
@@ -107,14 +124,18 @@ exports.handler = async (event) => {
     const data = await resp.json();
     if (!resp.ok) {
       const msg = (data && data.error && data.error.message) ? data.error.message : ('Gemini respondio ' + resp.status);
-      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: msg }) };
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: 'Gemini: ' + msg }) };
     }
 
     let text = '';
     try {
-      text = data.candidates[0].content.parts.map(p => p.text || '').join('');
-    } catch (e) {
-      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: 'Gemini no devolvio texto' }) };
+      const parts = (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) || [];
+      text = parts.map(p => p.text || '').join('');
+    } catch (e) { text = ''; }
+
+    if (!text) {
+      const reason = (data.candidates && data.candidates[0] && data.candidates[0].finishReason) || 'sin texto';
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: 'Gemini no devolvio texto (' + reason + ')' }) };
     }
 
     // Limpiar por si acaso viene con ```json
@@ -124,7 +145,6 @@ exports.handler = async (event) => {
     try {
       out = JSON.parse(text);
     } catch (e) {
-      // Intento de rescate: buscar el primer {...}
       const m = text.match(/\{[\s\S]*\}/);
       if (m) { try { out = JSON.parse(m[0]); } catch (e2) { out = null; } }
     }
