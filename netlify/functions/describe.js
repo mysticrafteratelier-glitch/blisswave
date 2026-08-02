@@ -11,7 +11,7 @@ const CORS = {
   'Content-Type': 'application/json'
 };
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.5-flash';
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -25,7 +25,7 @@ exports.handler = async (event) => {
       headers: CORS,
       body: JSON.stringify({
         ok: true,
-        version: 'gemini-v2',
+        version: 'gemini-v3',
         modelo: GEMINI_MODEL,
         tieneKey: !!process.env.GEMINI_API_KEY
       })
@@ -115,8 +115,7 @@ exports.handler = async (event) => {
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 2000,
-          responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 }
+          responseMimeType: 'application/json'
         }
       })
     });
@@ -164,3 +163,4 @@ exports.handler = async (event) => {
     return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message || 'Error inesperado' }) };
   }
 };
+
