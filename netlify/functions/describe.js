@@ -1,6 +1,6 @@
 // netlify/functions/describe.js
-// 🌸 BlissWave — Nombrado de joyería con IA (versión mejorada)
-// Requiere la variable de entorno: OPENAI_API_KEY
+// 🌸 BlissWave — Nombrado de joyería con IA (versión Gemini)
+// Requiere la variable de entorno: GEMINI_API_KEY
 // Responde: { name, description, category }
 
 const CORS = {
@@ -9,6 +9,8 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json'
 };
+
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
@@ -20,104 +22,125 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
-    let { imageUrl, imageBase64, categories } = body;
+    let { imageUrl, imageBase64, categories, category } = body;
     categories = Array.isArray(categories) ? categories.filter(Boolean) : [];
 
-    let imageForApi = imageUrl || imageBase64 || '';
-    if (imageBase64 && !imageUrl) {
-      imageForApi = imageBase64.startsWith('data:')
-        ? imageBase64
-        : ('data:image/jpeg;base64,' + imageBase64);
-    }
-    if (!imageForApi) {
-      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Falta imageUrl o imageBase64' }) };
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'Falta GEMINI_API_KEY en Netlify' }) };
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'Falta OPENAI_API_KEY' }) };
+    // ── Conseguir la imagen en base64 (Gemini la necesita así) ──
+    let mimeType = 'image/jpeg';
+    let dataB64 = '';
+
+    if (imageBase64) {
+      if (imageBase64.startsWith('data:')) {
+        const m = imageBase64.match(/^data:([^;]+);base64,(.+)$/s);
+        if (m) { mimeType = m[1]; dataB64 = m[2]; }
+        else { dataB64 = imageBase64.split(',').pop() || ''; }
+      } else {
+        dataB64 = imageBase64;
+      }
+    } else if (imageUrl) {
+      const imgResp = await fetch(imageUrl);
+      if (!imgResp.ok) {
+        return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'No pude descargar la foto (' + imgResp.status + ')' }) };
+      }
+      const ct = imgResp.headers.get('content-type');
+      if (ct && ct.startsWith('image/')) mimeType = ct.split(';')[0];
+      const buf = Buffer.from(await imgResp.arrayBuffer());
+      dataB64 = buf.toString('base64');
+    }
+
+    if (!dataB64) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Falta la foto (imageUrl o imageBase64)' }) };
     }
 
     const catList = categories.length
       ? categories.join(', ')
       : 'Collares, Pulseras, Aretes, Anillos, Dijes, Tobilleras, Sets';
 
-    const systemPrompt = [
-      'Eres una catalogadora experta de BISUTERIA ENCHAPADA EN ORO 14K para la tienda boutique femenina BlissWave.',
-      'Recibes UNA foto de una sola pieza y devuelves: un nombre comercial corto y PRECISO, una descripcion breve y su categoria.',
+    const promptLines = [
+      'Eres una catalogadora experta de BISUTERIA ENCHAPADA EN ORO 14K para la tienda BlissWave Collection (Miami, clientas latinas).',
+      'Recibes UNA foto de una sola pieza y devuelves un nombre comercial corto y una descripcion de venta.',
       '',
-      'REGLAS (siguelas siempre):',
-      '1) Identifica el TIPO por su forma real: Anillo, Pulsera, Collar/Cadena, Aretes, Dije/Colgante, Tobillera o Set/Juego.',
-      '2) Identifica el MOTIVO principal SOLO si se ve claro: trebol/clover, corazon, flor, mariposa, estrella, ojo turco, infinito, cruz, perla, circones, eslabones, etc.',
-      '3) SE LITERAL Y CONSERVADORA. Menciona un animal o figura (elefante, buho, mariposa, etc.) SOLO si es CLARAMENTE eso. Si dudas del motivo, usa un descriptor generico ("Dorado", "Texturizado", "Brillante", "Clasico"). NUNCA inventes una figura.',
-      '4) Toma en cuenta color/acabado visible: dorado, plateado, esmalte rojo/azul/negro/verde, piedras blancas/circon, perla.',
-      '5) NOMBRE en espanol, elegante, de 2 a 4 palabras, formato "[Tipo] [Motivo] [Detalle]". Sin marcas registradas (NO Van Cleef, NO Cartier, NO Tiffany).',
-      '6) DESCRIPCION: una sola frase corta y vendedora en espanol (maximo 16 palabras).',
-      '7) CATEGORIA: elige EXACTAMENTE una de esta lista y copiala igual: ' + catList + '.',
+      'REGLAS DEL NOMBRE:',
+      '- En espanol, 2 a 4 palabras, femenino y elegante. Ej: "Collar Espiga Dorada", "Anillo Corazon Brillante".',
+      '- Empieza con el tipo de pieza (Collar, Pulsera, Aretes, Anillo, Dije, Tobillera, Set, Cadena).',
+      '- NO uses la palabra "oro solido" ni marcas. NO inventes piedras que no se ven.',
       '',
-      'Responde UNICAMENTE con JSON valido, sin markdown ni texto extra:',
+      'REGLAS DE LA DESCRIPCION:',
+      '- 1 a 2 frases en espanol, tono calido de venta por WhatsApp, menciona "oro laminado 14k".',
+      '- Maximo 220 caracteres. Sin emojis.',
+      '',
+      'CATEGORIA:',
+      category
+        ? ('- La duena ya definio la categoria: "' + category + '". Usala tal cual en el campo category.')
+        : ('- Elige UNA de esta lista exacta: ' + catList + '.'),
+      '',
+      'FORMATO DE RESPUESTA:',
+      'Responde SOLO un objeto JSON valido, sin markdown, sin ```:',
       '{"name":"...","description":"...","category":"..."}'
     ].join('\n');
 
-    const payload = {
-      model: 'gpt-4o',
-      temperature: 0.2,
-      max_tokens: 200,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: systemPrompt },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'Nombra esta pieza siguiendo TODAS las reglas. Categorias validas: ' + catList },
-            { type: 'image_url', image_url: { url: imageForApi } }
-          ]
-        }
-      ]
-    };
-
-    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+    // ── Llamar a Gemini ──
+    const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + GEMINI_MODEL + ':generateContent?key=' + apiKey;
+    const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{
+          parts: [
+            { text: promptLines },
+            { inline_data: { mime_type: mimeType, data: dataB64 } }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 400,
+          responseMimeType: 'application/json'
+        }
+      })
     });
 
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: 'OpenAI error', detail: errText.slice(0, 300) }) };
-    }
-
     const data = await resp.json();
-    let content = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '{}';
-    content = content.replace(/```json|```/g, '').trim();
-
-    let parsed = {};
-    try { parsed = JSON.parse(content); } catch (e) { parsed = {}; }
-
-    let category = parsed.category || '';
-    if (categories.length && category) {
-      const exact = categories.find(c => c.toLowerCase() === String(category).toLowerCase());
-      if (exact) {
-        category = exact;
-      } else {
-        const partial = categories.find(c =>
-          String(category).toLowerCase().includes(c.toLowerCase()) ||
-          c.toLowerCase().includes(String(category).toLowerCase())
-        );
-        category = partial || category;
-      }
+    if (!resp.ok) {
+      const msg = (data && data.error && data.error.message) ? data.error.message : ('Gemini respondio ' + resp.status);
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: msg }) };
     }
 
-    return {
-      statusCode: 200,
-      headers: CORS,
-      body: JSON.stringify({
-        name: (parsed.name || '').toString().trim() || null,
-        description: (parsed.description || '').toString().trim() || null,
-        category: (category || '').toString().trim() || null
-      })
+    let text = '';
+    try {
+      text = data.candidates[0].content.parts.map(p => p.text || '').join('');
+    } catch (e) {
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: 'Gemini no devolvio texto' }) };
+    }
+
+    // Limpiar por si acaso viene con ```json
+    text = text.replace(/```json|```/g, '').trim();
+
+    let out;
+    try {
+      out = JSON.parse(text);
+    } catch (e) {
+      // Intento de rescate: buscar el primer {...}
+      const m = text.match(/\{[\s\S]*\}/);
+      if (m) { try { out = JSON.parse(m[0]); } catch (e2) { out = null; } }
+    }
+
+    if (!out || !out.name) {
+      return { statusCode: 502, headers: CORS, body: JSON.stringify({ error: 'La IA no dio un nombre valido — intenta de nuevo' }) };
+    }
+
+    const result = {
+      name: String(out.name).trim(),
+      description: String(out.description || '').trim(),
+      category: String(out.category || category || '').trim()
     };
+
+    return { statusCode: 200, headers: CORS, body: JSON.stringify(result) };
   } catch (err) {
-    return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: (err && err.message) || 'Error interno' }) };
+    return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message || 'Error inesperado' }) };
   }
 };
